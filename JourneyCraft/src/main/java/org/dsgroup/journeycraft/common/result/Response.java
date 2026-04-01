@@ -1,4 +1,4 @@
-package org.dsgroup.journeycraft.common.response;
+package org.dsgroup.journeycraft.common.result;
 
 import lombok.Data;
 import org.dsgroup.journeycraft.common.enums.ResponseCodeEnum;

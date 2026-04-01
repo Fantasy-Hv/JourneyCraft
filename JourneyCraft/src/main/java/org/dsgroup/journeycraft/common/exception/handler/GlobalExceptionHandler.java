@@ -2,7 +2,7 @@ package org.dsgroup.journeycraft.common.exception.handler;
 
 import lombok.extern.slf4j.Slf4j;
 import org.dsgroup.journeycraft.common.exception.BusinessException;
-import org.dsgroup.journeycraft.common.response.Response;
+import org.dsgroup.journeycraft.common.result.Response;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
