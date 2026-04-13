@@ -28,17 +28,37 @@ public class Facility {
 
     private String subtype;
 
+    private Integer facilityClass;
+
     private BigDecimal latitude;
 
     private BigDecimal longitude;
 
+    private Integer floorNumber;
+
+    private String description;
+
     private BigDecimal rating;
+
+    private Integer reviewCount;
+
+    private Integer heatScore;
 
     private String priceRange;
 
+    private String openingHours;
+
     private String images;
+
+    private String contactInfo;
+
+    private String tags;
 
     private Integer status;
 
+    private Integer isDeleted;
+
     private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
 }

@@ -29,5 +29,9 @@ public class CrowdLevel {
 
     private Integer source;
 
+    private Integer isDeleted;
+
     private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
 }

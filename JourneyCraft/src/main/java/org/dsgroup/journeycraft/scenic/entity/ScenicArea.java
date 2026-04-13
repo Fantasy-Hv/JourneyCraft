@@ -40,11 +40,17 @@ public class ScenicArea {
 
     private BigDecimal ticketPrice;
 
+    private String bookingUrl;
+
     private String openingHours;
 
     private String images;
 
+    private String contactPhone;
+
     private Integer status;
+
+    private Integer isDeleted;
 
     private LocalDateTime createdAt;
 

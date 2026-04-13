@@ -32,7 +32,13 @@ public class Building {
 
     private String description;
 
+    private String indoorMap;
+
     private String images;
 
+    private Integer isDeleted;
+
     private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
 }
