@@ -5,7 +5,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-@MapperScan("org.dsgroup.journeycraft")
+@MapperScan("org.dsgroup.journeycraft.**.mapper")
 public class JourneyCraftApplication {
 
     public static void main(String[] args) {

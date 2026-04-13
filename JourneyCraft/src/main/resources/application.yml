@@ -17,6 +17,14 @@ spring:
   mongodb:
     uri: mongodb://localhost:27017/JourneyCraft
 
+  # Spring Security 配置（开发环境）
+  security:
+    user:
+      name: test
+      password: test
+    filter:
+      order: -100
+
 # MyBatis-Plus 配置
 mybatis-plus:
   configuration:
