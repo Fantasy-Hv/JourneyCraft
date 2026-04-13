@@ -7,13 +7,16 @@ import org.dsgroup.journeycraft.common.result.Response;
 import org.dsgroup.journeycraft.diary.dto.DiaryCreateDTO;
 import org.dsgroup.journeycraft.diary.service.DiaryService;
 import org.dsgroup.journeycraft.diary.vo.reqvo.DiaryCreateReqVO;
+import org.dsgroup.journeycraft.diary.vo.reqvo.DiaryListReqVO;
 import org.dsgroup.journeycraft.diary.vo.rspvo.DiaryCreateRspVO;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.dsgroup.journeycraft.diary.vo.rspvo.DiaryDetailRspVO;
+import org.dsgroup.journeycraft.diary.vo.rspvo.DiaryListRspVO;
+import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -47,6 +50,41 @@ public class DiaryController {
                 .build();
 
         return Response.ok(rspVO);
+    }
+
+    /**
+     * 查询日记列表
+     * @param reqVO 查询请求 VO
+     * @return 日记列表
+     */
+    @GetMapping("/list")
+    @Operation(summary = "查询日记列表", description = "分页查询日记列表，支持按用户、标签、排序等条件过滤")
+    public Response<Map<String, Object>> getDiaryList(DiaryListReqVO reqVO) {
+        List<DiaryListRspVO> list = diaryService.getDiaryList(
+                reqVO.getUserId(),
+                reqVO.getTags(),
+                reqVO.getSortBy(),
+                reqVO.getPage(),
+                reqVO.getSize()
+        );
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", list);
+        result.put("total", list.size()); // TODO: 实际需要查询总数
+
+        return Response.ok(result);
+    }
+
+    /**
+     * 查询日记详情
+     * @param id 日记 ID
+     * @return 日记详情
+     */
+    @GetMapping("/{id}")
+    @Operation(summary = "查询日记详情", description = "根据日记 ID 查询完整日记信息")
+    public Response<DiaryDetailRspVO> getDiaryDetail(@PathVariable String id) {
+        DiaryDetailRspVO detail = diaryService.getDiaryDetail(id);
+        return Response.ok(detail);
     }
 
     /**

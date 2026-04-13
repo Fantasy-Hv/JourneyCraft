@@ -1,6 +1,7 @@
 package org.dsgroup.journeycraft.diary.repository;
 
 import org.dsgroup.journeycraft.diary.entity.Diary;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
@@ -28,10 +29,27 @@ public interface DiaryRepository extends MongoRepository<Diary, String> {
     List<Diary> findByStatus(Integer status);
 
     /**
+     * 根据状态查询日记列表（分页）
+     * @param status 状态
+     * @param pageable 分页参数
+     * @return 日记列表
+     */
+    List<Diary> findByStatus(Integer status, Pageable pageable);
+
+    /**
      * 根据用户 ID 和状态查询日记列表
      * @param userId 用户 ID
      * @param status 状态
      * @return 日记列表
      */
     List<Diary> findByUserIdAndStatus(Long userId, Integer status);
+
+    /**
+     * 根据用户 ID 和状态查询日记列表（分页）
+     * @param userId 用户 ID
+     * @param status 状态
+     * @param pageable 分页参数
+     * @return 日记列表
+     */
+    List<Diary> findByUserIdAndStatus(Long userId, Integer status, Pageable pageable);
 }

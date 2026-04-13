@@ -5,9 +5,15 @@ import org.dsgroup.journeycraft.diary.dto.DiaryCreateDTO;
 import org.dsgroup.journeycraft.diary.entity.Diary;
 import org.dsgroup.journeycraft.diary.repository.DiaryRepository;
 import org.dsgroup.journeycraft.diary.service.DiaryService;
+import org.dsgroup.journeycraft.diary.vo.rspvo.DiaryDetailRspVO;
+import org.dsgroup.journeycraft.diary.vo.rspvo.DiaryListRspVO;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -21,6 +27,7 @@ public class DiaryServiceImpl implements DiaryService {
 
     /**
      * 创建日记
+     *
      * @param dto 创建日记数据传输对象
      * @return 日记 ID
      */
@@ -64,9 +71,157 @@ public class DiaryServiceImpl implements DiaryService {
     }
 
     /**
+     * 查询日记列表
+     */
+    @Override
+    public List<DiaryListRspVO> getDiaryList(Long userId, String tags, String sortBy, Integer page, Integer size) {
+        // 默认参数
+        if (page == null || page < 1) page = 1;
+        if (size == null || size < 1) size = 10;
+        if (size > 100) size = 100;
+
+        // 构建排序
+        Sort sort = buildSort(sortBy);
+
+        // 查询数据（只查询公开的日记）
+        List<Diary> diaries;
+        if (userId != null) {
+            diaries = diaryRepository.findByUserIdAndStatus(userId, 1, PageRequest.of(page - 1, size, sort));
+        } else {
+            diaries = diaryRepository.findByStatus(1, PageRequest.of(page - 1, size, sort));
+        }
+
+        // 标签过滤（内存过滤）
+        if (tags != null && !tags.isEmpty()) {
+            String[] tagArray = tags.split(",");
+            diaries = diaries.stream()
+                    .filter(d -> d.getTags() != null &&
+                            d.getTags().stream().anyMatch(t -> {
+                                for (String tag : tagArray) {
+                                    if (t.contains(tag.trim())) return true;
+                                }
+                                return false;
+                            }))
+                    .collect(Collectors.toList());
+        }
+
+        // 转换为 VO
+        return diaries.stream()
+                .map(this::convertToListVO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 查询日记详情
+     */
+    @Override
+    public DiaryDetailRspVO getDiaryDetail(String id) {
+        Diary diary = diaryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("日记不存在"));
+
+        // 检查是否公开（私密日记只有自己能看到，这里简化处理）
+        if (diary.getStatus() == 0) {
+            throw new RuntimeException("该日记为私密日记");
+        }
+
+        return convertToDetailVO(diary);
+    }
+
+    /**
+     * 构建排序条件
+     */
+    private Sort buildSort(String sortBy) {
+        if ("heat".equals(sortBy)) {
+            // 热度 = 点赞 + 浏览 + 评论
+            return Sort.by(Sort.Direction.DESC, "likeCount", "viewCount", "commentCount");
+        } else if ("rating".equals(sortBy)) {
+            return Sort.by(Sort.Direction.DESC, "rating");
+        } else {
+            // 默认按时间倒序
+            return Sort.by(Sort.Direction.DESC, "createdAt");
+        }
+    }
+
+    /**
+     * 将 Diary 实体转换为列表 VO
+     */
+    private DiaryListRspVO convertToListVO(Diary diary) {
+        return DiaryListRspVO.builder()
+                .id(diary.getId())
+                .userId(diary.getUserId())
+                .userNickname("用户" + diary.getUserId()) // TODO: 从 user 模块获取
+                .userAvatar("http://localhost:9000/journeycraft/avatar/default.jpg") // TODO: 从 user 模块获取
+                .title(diary.getTitle())
+                .summary(diary.getSummary())
+                .coverImage(diary.getCoverImage())
+                .tags(diary.getTags())
+                .rating(diary.getRating())
+                .likeCount(diary.getLikeCount())
+                .images(diary.getImages())
+                .videos(diary.getVideos())
+                .viewCount(diary.getViewCount())
+                .commentCount(diary.getCommentCount())
+                .createdAt(diary.getCreatedAt())
+                .build();
+    }
+
+    /**
+     * 将 Diary 实体转换为详情 VO
+     */
+    private DiaryDetailRspVO convertToDetailVO(Diary diary) {
+        return DiaryDetailRspVO.builder()
+                .id(diary.getId())
+                .userId(diary.getUserId())
+                .userNickname("用户" + diary.getUserId()) // TODO: 从 user 模块获取
+                .userAvatar("http://localhost:9000/journeycraft/avatar/default.jpg") // TODO: 从 user 模块获取
+                .title(diary.getTitle())
+                .content(diary.getContent())
+                .scenicAreaId(diary.getScenicAreaId())
+                .tripId(diary.getTripId())
+                .coverImage(diary.getCoverImage())
+                .images(diary.getImages())
+                .videos(diary.getVideos())
+                .path(convertToPathNodeVOs(diary.getPath()))
+                .tags(diary.getTags())
+                .rating(diary.getRating())
+                .mood(diary.getMood())
+                .weather(diary.getWeather())
+                .companions(diary.getCompanions())
+                .isAutoGenerated(diary.getIsAutoGenerated())
+                .aiSummary(diary.getAiSummary())
+                .likeCount(diary.getLikeCount())
+                .viewCount(diary.getViewCount())
+                .commentCount(diary.getCommentCount())
+                .isLiked(false) // TODO: 根据当前用户判断
+                .status(diary.getStatus())
+                .createdAt(diary.getCreatedAt())
+                .updatedAt(diary.getUpdatedAt())
+                .build();
+    }
+
+    /**
+     * 将路径节点转换为 VO
+     */
+    private List<DiaryDetailRspVO.PathNodeVO> convertToPathNodeVOs(List<Diary.PathNode> pathNodes) {
+        if (pathNodes == null) return new ArrayList<>();
+        return pathNodes.stream()
+                .map(node -> DiaryDetailRspVO.PathNodeVO.builder()
+                        .nodeName(node.getNodeName())
+                        .nodeId(node.getNodeId())
+                        .timestamp(node.getTimestamp())
+                        .lat(node.getLocation() != null ? node.getLocation().getLat() : null)
+                        .lng(node.getLocation() != null ? node.getLocation().getLng() : null)
+                        .photoCount(node.getPhotoCount())
+                        .images(node.getImages())
+                        .videos(node.getVideos())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    /**
      * 将 DTO 的路径节点转换为实体的路径节点
      */
-    private java.util.List<Diary.PathNode> convertToPathNodes(java.util.List<DiaryCreateDTO.PathNodeDTO> pathNodeDTOs) {
+    private List<Diary.PathNode> convertToPathNodes(List<DiaryCreateDTO.PathNodeDTO> pathNodeDTOs) {
         if (pathNodeDTOs == null || pathNodeDTOs.isEmpty()) {
             return null;
         }
@@ -76,7 +231,7 @@ public class DiaryServiceImpl implements DiaryService {
                         .nodeName(dto.getNodeName())
                         .nodeId(dto.getNodeId())
                         .timestamp(dto.getTimestamp() != null ?
-                                java.time.LocalDateTime.parse(dto.getTimestamp()) : null)
+                                LocalDateTime.parse(dto.getTimestamp()) : null)
                         .location(dto.getLat() != null && dto.getLng() != null ?
                                 Diary.Location.builder()
                                         .lat(dto.getLat())
