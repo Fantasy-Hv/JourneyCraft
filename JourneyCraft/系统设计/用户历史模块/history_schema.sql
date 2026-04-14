@@ -1,6 +1,6 @@
 -- JourneyCraft history module schema
 -- 作用：记录用户浏览历史、搜索历史和导航历史
-use journeycraft;
+
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
