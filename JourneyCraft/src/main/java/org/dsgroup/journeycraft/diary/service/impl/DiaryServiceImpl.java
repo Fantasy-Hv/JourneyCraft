@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -34,15 +36,23 @@ public class DiaryServiceImpl implements DiaryService {
     private final CommentRepository commentRepository;
 
     /**
+     * 内存存储用户点赞记录 (Key: diaryId:userId, Value: liked)
+     * 注意：生产环境应该使用数据库表存储
+     */
+    private final Set<String> likedRecords = ConcurrentHashMap.newKeySet();
+
+    /**
      * 创建日记
      *
      * @param dto 创建日记数据传输对象
+     * @param currentUserId 当前登录用户 ID
      * @return 日记 ID
      */
     @Override
-    public String createDiary(DiaryCreateDTO dto) {
+    public String createDiary(DiaryCreateDTO dto, Long currentUserId) {
         // 构建 Diary 实体
         Diary diary = Diary.builder()
+                .userId(currentUserId)
                 .title(dto.getTitle())
                 .content(dto.getContent())
                 .scenicAreaId(dto.getScenicAreaId())
@@ -279,9 +289,14 @@ public class DiaryServiceImpl implements DiaryService {
      * 更新日记
      */
     @Override
-    public void updateDiary(String id, DiaryCreateDTO dto) {
+    public void updateDiary(String id, DiaryCreateDTO dto, Long currentUserId) {
         Diary diary = diaryRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND,"日记不存在"));
+
+        // 所有权校验
+        if (diary.getUserId() == null || !diary.getUserId().equals(currentUserId)) {
+            throw new BusinessException(ResponseCodeEnum.PERMISSION_DENIED, "无权修改该日记");
+        }
 
         // 更新字段
         diary.setTitle(dto.getTitle());
@@ -312,10 +327,15 @@ public class DiaryServiceImpl implements DiaryService {
      * 删除日记
      */
     @Override
-    public void deleteDiary(String id) {
-        if (!diaryRepository.existsById(id)) {
-            throw new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND,"日记不存在");
+    public void deleteDiary(String id, Long currentUserId) {
+        Diary diary = diaryRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND,"日记不存在"));
+
+        // 所有权校验
+        if (diary.getUserId() == null || !diary.getUserId().equals(currentUserId)) {
+            throw new BusinessException(ResponseCodeEnum.PERMISSION_DENIED, "无权删除该日记");
         }
+
         diaryRepository.deleteById(id);
 
         // 删除相关评论
@@ -323,20 +343,31 @@ public class DiaryServiceImpl implements DiaryService {
     }
 
     /**
-     * 点赞日记
+     * 点赞日记 (切换模式)
      */
     @Override
-    public DiaryLikeRspVO toggleLike(String id) {
+    public DiaryLikeRspVO toggleLike(String id, Long currentUserId) {
         Diary diary = diaryRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND,"日记不存在"));
 
-        // 点赞数 +1（简化处理，实际应记录用户点赞状态）
-        diary.setLikeCount(diary.getLikeCount() + 1);
+        String recordKey = id + ":" + currentUserId;
+        boolean isLiked = likedRecords.contains(recordKey);
+
+        if (isLiked) {
+            // 取消点赞
+            likedRecords.remove(recordKey);
+            diary.setLikeCount(Math.max(0, diary.getLikeCount() - 1));
+        } else {
+            // 点赞
+            likedRecords.add(recordKey);
+            diary.setLikeCount(diary.getLikeCount() + 1);
+        }
+
         diaryRepository.save(diary);
 
         return DiaryLikeRspVO.builder()
                 .likeCount(diary.getLikeCount())
-                .isLiked(true)
+                .isLiked(!isLiked)
                 .build();
     }
 
@@ -344,7 +375,7 @@ public class DiaryServiceImpl implements DiaryService {
      * 添加评论
      */
     @Override
-    public String addComment(String diaryId, CommentCreateReqVO reqVO) {
+    public String addComment(String diaryId, CommentCreateReqVO reqVO, Long currentUserId) {
         // 验证日记是否存在
         if (!diaryRepository.existsById(diaryId)) {
             throw new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND,"日记不存在");
@@ -352,8 +383,8 @@ public class DiaryServiceImpl implements DiaryService {
 
         Comment comment = Comment.builder()
                 .diaryId(diaryId)
-                .userId(1001L) // TODO: 从当前用户获取
-                .userNickname("用户 1001") // TODO: 从 user 模块获取
+                .userId(currentUserId)
+                .userNickname("用户" + currentUserId) // TODO: 从 user 模块获取
                 .userAvatar("http://localhost:9000/journeycraft/avatar/default.jpg")
                 .parentId(reqVO.getParentId())
                 .content(reqVO.getContent())
@@ -369,12 +400,13 @@ public class DiaryServiceImpl implements DiaryService {
         // 如果是回复评论，增加父评论的回复数
         if (reqVO.getParentId() != null) {
             Comment parentComment = commentRepository.findById(reqVO.getParentId())
-                    .orElseThrow(() -> new RuntimeException("父评论不存在"));
+                    .orElseThrow(() -> new BusinessException(ResponseCodeEnum.DATA_NOT_EXIST, "父评论不存在"));
             parentComment.setReplyCount(parentComment.getReplyCount() + 1);
             commentRepository.save(parentComment);
         } else {
             // 增加日记的评论数
-            Diary diary = diaryRepository.findById(diaryId).get();
+            Diary diary = diaryRepository.findById(diaryId)
+                    .orElseThrow(() -> new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND, "日记不存在"));
             diary.setCommentCount(diary.getCommentCount() + 1);
             diaryRepository.save(diary);
         }
@@ -426,5 +458,45 @@ public class DiaryServiceImpl implements DiaryService {
                 .createdAt(comment.getCreatedAt())
                 .replies(replies)
                 .build();
+    }
+
+    /**
+     * 删除评论
+     */
+    @Override
+    public void deleteComment(String commentId, Long currentUserId) {
+        // 1. 查询评论是否存在
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new BusinessException(ResponseCodeEnum.DATA_NOT_EXIST, "评论不存在"));
+
+        // 2. 查询日记是否存在
+        Diary diary = diaryRepository.findById(comment.getDiaryId())
+                .orElseThrow(() -> new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND, "日记不存在"));
+
+        // 3. 权限校验 (注意：userId 可能为 null)
+        boolean isCommentOwner = comment.getUserId() != null && comment.getUserId().equals(currentUserId);
+        boolean isDiaryOwner = diary.getUserId() != null && diary.getUserId().equals(currentUserId);
+
+        if (!isCommentOwner && !isDiaryOwner) {
+            throw new BusinessException(ResponseCodeEnum.PERMISSION_DENIED, "无权删除该评论");
+        }
+
+        // 4. 软删除评论 (修改 status=0)
+        comment.setStatus(0);
+        commentRepository.save(comment);
+
+        // 5. 更新计数
+        if (comment.getParentId() == null) {
+            // 父评论：减少日记评论数
+            diary.setCommentCount(Math.max(0, diary.getCommentCount() - 1));
+            diaryRepository.save(diary);
+        } else {
+            // 回复评论：减少父评论回复数
+            Comment parentComment = commentRepository.findById(comment.getParentId()).orElse(null);
+            if (parentComment != null && parentComment.getStatus() == 1) {
+                parentComment.setReplyCount(Math.max(0, parentComment.getReplyCount() - 1));
+                commentRepository.save(parentComment);
+            }
+        }
     }
 }

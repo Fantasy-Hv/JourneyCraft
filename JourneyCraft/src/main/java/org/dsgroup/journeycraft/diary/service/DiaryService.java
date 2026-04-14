@@ -18,9 +18,10 @@ public interface DiaryService {
     /**
      * 创建日记
      * @param dto 创建日记数据传输对象
+     * @param currentUserId 当前登录用户 ID
      * @return 日记 ID
      */
-    String createDiary(DiaryCreateDTO dto);
+    String createDiary(DiaryCreateDTO dto, Long currentUserId);
 
     /**
      * 查询日记列表
@@ -44,29 +45,33 @@ public interface DiaryService {
      * 更新日记
      * @param id 日记 ID
      * @param dto 更新数据传输对象
+     * @param currentUserId 当前登录用户 ID
      */
-    void updateDiary(String id, DiaryCreateDTO dto);
+    void updateDiary(String id, DiaryCreateDTO dto, Long currentUserId);
 
     /**
      * 删除日记
      * @param id 日记 ID
+     * @param currentUserId 当前登录用户 ID
      */
-    void deleteDiary(String id);
+    void deleteDiary(String id, Long currentUserId);
 
     /**
      * 点赞日记
      * @param id 日记 ID
+     * @param currentUserId 当前登录用户 ID
      * @return 点赞结果
      */
-    DiaryLikeRspVO toggleLike(String id);
+    DiaryLikeRspVO toggleLike(String id, Long currentUserId);
 
     /**
      * 添加评论
      * @param diaryId 日记 ID
      * @param reqVO 评论请求 VO
+     * @param currentUserId 当前登录用户 ID
      * @return 评论 ID
      */
-    String addComment(String diaryId, CommentCreateReqVO reqVO);
+    String addComment(String diaryId, CommentCreateReqVO reqVO, Long currentUserId);
 
     /**
      * 查询评论列表
@@ -76,4 +81,11 @@ public interface DiaryService {
      * @return 评论列表
      */
     List<CommentRspVO> getCommentList(String diaryId, Integer page, Integer size);
+
+    /**
+     * 删除评论
+     * @param commentId 评论 ID
+     * @param currentUserId 当前登录用户 ID
+     */
+    void deleteComment(String commentId, Long currentUserId);
 }
