@@ -1,6 +1,8 @@
 package org.dsgroup.journeycraft.diary.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.dsgroup.journeycraft.common.enums.ResponseCodeEnum;
+import org.dsgroup.journeycraft.common.exception.BusinessException;
 import org.dsgroup.journeycraft.diary.dto.DiaryCreateDTO;
 import org.dsgroup.journeycraft.diary.entity.Comment;
 import org.dsgroup.journeycraft.diary.entity.Diary;
@@ -123,7 +125,7 @@ public class DiaryServiceImpl implements DiaryService {
     @Override
     public DiaryDetailRspVO getDiaryDetail(String id) {
         Diary diary = diaryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("日记不存在"));
+                .orElseThrow(() -> new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND,"日记不存在"));
 
         // 检查是否公开（私密日记只有自己能看到，这里简化处理）
         if (diary.getStatus() == 0) {
@@ -279,7 +281,7 @@ public class DiaryServiceImpl implements DiaryService {
     @Override
     public void updateDiary(String id, DiaryCreateDTO dto) {
         Diary diary = diaryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("日记不存在"));
+                .orElseThrow(() -> new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND,"日记不存在"));
 
         // 更新字段
         diary.setTitle(dto.getTitle());
@@ -312,7 +314,7 @@ public class DiaryServiceImpl implements DiaryService {
     @Override
     public void deleteDiary(String id) {
         if (!diaryRepository.existsById(id)) {
-            throw new RuntimeException("日记不存在");
+            throw new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND,"日记不存在");
         }
         diaryRepository.deleteById(id);
 
@@ -326,7 +328,7 @@ public class DiaryServiceImpl implements DiaryService {
     @Override
     public DiaryLikeRspVO toggleLike(String id) {
         Diary diary = diaryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("日记不存在"));
+                .orElseThrow(() -> new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND,"日记不存在"));
 
         // 点赞数 +1（简化处理，实际应记录用户点赞状态）
         diary.setLikeCount(diary.getLikeCount() + 1);
@@ -345,7 +347,7 @@ public class DiaryServiceImpl implements DiaryService {
     public String addComment(String diaryId, CommentCreateReqVO reqVO) {
         // 验证日记是否存在
         if (!diaryRepository.existsById(diaryId)) {
-            throw new RuntimeException("日记不存在");
+            throw new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND,"日记不存在");
         }
 
         Comment comment = Comment.builder()

@@ -7,6 +7,7 @@ import org.dsgroup.journeycraft.common.result.Response;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -32,7 +33,7 @@ public class GlobalExceptionHandler {
     /**
      * 处理参数错误异常
      */
-    @ExceptionHandler(IllegalArgumentException.class)
+    @ExceptionHandler(value = {IllegalArgumentException.class, MethodArgumentNotValidException.class})
     public Response<Void> handleIllegalArgumentException(IllegalArgumentException e) {
         log.warn("参数错误：{}", e.getMessage());
         return Response.error(ResponseCodeEnum.INVALID_PARAM.getCode(), e.getMessage());
