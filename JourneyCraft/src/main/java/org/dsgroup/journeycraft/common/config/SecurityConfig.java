@@ -3,29 +3,26 @@ package org.dsgroup.journeycraft.common.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Spring Security 配置类（开发环境）
- * 仅供本分支测试用，后续应由负责auth模块的代码代替。
+ * Spring Security 基础配置。
  */
 @Configuration
 public class SecurityConfig {
 
+    /**
+     * 关闭默认表单/Basic 认证，接口由项目内 Token 拦截器统一处理。
+     */
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(csrf -> csrf.disable())
-            .authorizeHttpRequests(auth -> auth
-                // 允许 diary 接口匿名访问（开发环境）
-                .requestMatchers("/api/diary/**").permitAll()
-                // 允许 swagger/knife4j 访问
-                .requestMatchers("/doc.html", "/doc/**", "/api-docs/**", "/webjars/**").permitAll()
-                // 其他请求需要认证
-                .anyRequest().authenticated()
-            )
-            .httpBasic(basic -> basic.disable());
-
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http.csrf(AbstractHttpConfigurer::disable);
+        http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        http.formLogin(AbstractHttpConfigurer::disable);
+        http.httpBasic(AbstractHttpConfigurer::disable);
+        http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
         return http.build();
     }
 }
