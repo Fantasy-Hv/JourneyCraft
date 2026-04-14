@@ -2,10 +2,15 @@ package org.dsgroup.journeycraft.diary.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import org.dsgroup.journeycraft.diary.dto.DiaryCreateDTO;
+import org.dsgroup.journeycraft.diary.entity.Comment;
 import org.dsgroup.journeycraft.diary.entity.Diary;
+import org.dsgroup.journeycraft.diary.repository.CommentRepository;
 import org.dsgroup.journeycraft.diary.repository.DiaryRepository;
 import org.dsgroup.journeycraft.diary.service.DiaryService;
+import org.dsgroup.journeycraft.diary.vo.reqvo.CommentCreateReqVO;
+import org.dsgroup.journeycraft.diary.vo.rspvo.CommentRspVO;
 import org.dsgroup.journeycraft.diary.vo.rspvo.DiaryDetailRspVO;
+import org.dsgroup.journeycraft.diary.vo.rspvo.DiaryLikeRspVO;
 import org.dsgroup.journeycraft.diary.vo.rspvo.DiaryListRspVO;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -24,6 +29,7 @@ import java.util.stream.Collectors;
 public class DiaryServiceImpl implements DiaryService {
 
     private final DiaryRepository diaryRepository;
+    private final CommentRepository commentRepository;
 
     /**
      * 创建日记
@@ -265,5 +271,158 @@ public class DiaryServiceImpl implements DiaryService {
         }
 
         return plainText;
+    }
+
+    /**
+     * 更新日记
+     */
+    @Override
+    public void updateDiary(String id, DiaryCreateDTO dto) {
+        Diary diary = diaryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("日记不存在"));
+
+        // 更新字段
+        diary.setTitle(dto.getTitle());
+        diary.setContent(dto.getContent());
+        diary.setScenicAreaId(dto.getScenicAreaId());
+        diary.setTripId(dto.getTripId());
+        diary.setCoverImage(dto.getCoverImage());
+        diary.setImages(dto.getImages());
+        diary.setVideos(dto.getVideos());
+        diary.setPath(convertToPathNodes(dto.getPath()));
+        diary.setTags(dto.getTags());
+        diary.setRating(dto.getRating());
+        diary.setMood(dto.getMood());
+        diary.setWeather(dto.getWeather());
+        diary.setCompanions(dto.getCompanions());
+        diary.setStatus(dto.getStatus() != null ? dto.getStatus() : 1);
+        diary.setUpdatedAt(LocalDateTime.now());
+
+        // 自动生成摘要（如果未提供）
+        if (diary.getSummary() == null || diary.getSummary().isEmpty()) {
+            diary.setSummary(generateSummary(dto.getContent()));
+        }
+
+        diaryRepository.save(diary);
+    }
+
+    /**
+     * 删除日记
+     */
+    @Override
+    public void deleteDiary(String id) {
+        if (!diaryRepository.existsById(id)) {
+            throw new RuntimeException("日记不存在");
+        }
+        diaryRepository.deleteById(id);
+
+        // 删除相关评论
+        commentRepository.deleteByDiaryId(id);
+    }
+
+    /**
+     * 点赞日记
+     */
+    @Override
+    public DiaryLikeRspVO toggleLike(String id) {
+        Diary diary = diaryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("日记不存在"));
+
+        // 点赞数 +1（简化处理，实际应记录用户点赞状态）
+        diary.setLikeCount(diary.getLikeCount() + 1);
+        diaryRepository.save(diary);
+
+        return DiaryLikeRspVO.builder()
+                .likeCount(diary.getLikeCount())
+                .isLiked(true)
+                .build();
+    }
+
+    /**
+     * 添加评论
+     */
+    @Override
+    public String addComment(String diaryId, CommentCreateReqVO reqVO) {
+        // 验证日记是否存在
+        if (!diaryRepository.existsById(diaryId)) {
+            throw new RuntimeException("日记不存在");
+        }
+
+        Comment comment = Comment.builder()
+                .diaryId(diaryId)
+                .userId(1001L) // TODO: 从当前用户获取
+                .userNickname("用户 1001") // TODO: 从 user 模块获取
+                .userAvatar("http://localhost:9000/journeycraft/avatar/default.jpg")
+                .parentId(reqVO.getParentId())
+                .content(reqVO.getContent())
+                .images(reqVO.getImages())
+                .likeCount(0L)
+                .replyCount(0L)
+                .status(1)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Comment savedComment = commentRepository.save(comment);
+
+        // 如果是回复评论，增加父评论的回复数
+        if (reqVO.getParentId() != null) {
+            Comment parentComment = commentRepository.findById(reqVO.getParentId())
+                    .orElseThrow(() -> new RuntimeException("父评论不存在"));
+            parentComment.setReplyCount(parentComment.getReplyCount() + 1);
+            commentRepository.save(parentComment);
+        } else {
+            // 增加日记的评论数
+            Diary diary = diaryRepository.findById(diaryId).get();
+            diary.setCommentCount(diary.getCommentCount() + 1);
+            diaryRepository.save(diary);
+        }
+
+        return savedComment.getId();
+    }
+
+    /**
+     * 查询评论列表
+     */
+    @Override
+    public List<CommentRspVO> getCommentList(String diaryId, Integer page, Integer size) {
+        // 默认参数
+        if (page == null || page < 1) page = 1;
+        if (size == null || size < 1) size = 10;
+        if (size > 100) size = 100;
+
+        // 查询评论（只查询显示的评论，先查父评论）
+        List<Comment> comments = commentRepository.findByDiaryIdAndStatus(diaryId, 1,
+                PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+
+        return comments.stream()
+                .map(this::convertToCommentVO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 将 Comment 实体转换为 VO
+     */
+    private CommentRspVO convertToCommentVO(Comment comment) {
+        List<CommentRspVO> replies = new ArrayList<>();
+        // 如果是父评论，查询回复
+        if (comment.getParentId() == null) {
+            List<Comment> replyComments = commentRepository.findByParentId(comment.getId());
+            replies = replyComments.stream()
+                    .map(this::convertToCommentVO)
+                    .collect(Collectors.toList());
+        }
+
+        return CommentRspVO.builder()
+                .id(comment.getId())
+                .userId(comment.getUserId())
+                .userNickname(comment.getUserNickname())
+                .userAvatar(comment.getUserAvatar())
+                .content(comment.getContent())
+                .images(comment.getImages())
+                .likeCount(comment.getLikeCount())
+                .replyCount(comment.getReplyCount())
+                .createdAt(comment.getCreatedAt())
+                .replies(replies)
+                .build();
     }
 }
