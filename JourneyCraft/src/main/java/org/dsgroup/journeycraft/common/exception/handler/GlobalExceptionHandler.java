@@ -1,6 +1,7 @@
 package org.dsgroup.journeycraft.common.exception.handler;
 
 import lombok.extern.slf4j.Slf4j;
+import org.dsgroup.journeycraft.common.enums.ResponseCodeEnum;
 import org.dsgroup.journeycraft.common.exception.BusinessException;
 import org.dsgroup.journeycraft.common.result.Response;
 import org.springframework.security.access.AccessDeniedException;
@@ -34,18 +35,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public Response<Void> handleIllegalArgumentException(IllegalArgumentException e) {
         log.warn("参数错误：{}", e.getMessage());
-        return Response.error(400, e.getMessage());
+        return Response.error(ResponseCodeEnum.INVALID_PARAM.getCode(), e.getMessage());
     }
 
     /**
-     * 处理认证异常（Token 无效、过期等）
+     * 处理认证异常(Token 无效、过期等)
      */
     @ExceptionHandler({BadCredentialsException.class, InsufficientAuthenticationException.class,
             org.springframework.security.authentication.CredentialsExpiredException.class,
             org.springframework.security.authentication.AccountExpiredException.class})
     public Response<Void> handleAuthenticationException(Exception e) {
         log.warn("认证失败：{}", e.getMessage());
-        return Response.error(401, "认证失败：" + e.getMessage());
+        return Response.error(ResponseCodeEnum.UNAUTHORIZED);
     }
 
     /**
@@ -54,7 +55,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public Response<Void> handleAccessDeniedException(AccessDeniedException e) {
         log.warn("权限不足：{}", e.getMessage());
-        return Response.error(403, "权限不足");
+        return Response.error(ResponseCodeEnum.FORBIDDEN);
     }
 
     /**
@@ -63,7 +64,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoHandlerFoundException.class)
     public Response<Void> handleNoHandlerFoundException(NoHandlerFoundException e) {
         log.warn("资源不存在：{}", e.getRequestURL());
-        return Response.error(404, "资源不存在");
+        return Response.error(ResponseCodeEnum.NOT_FOUND);
     }
 
     /**
@@ -72,7 +73,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public Response<Void> handleException(Exception e) {
         log.error("系统异常：", e);
-        return Response.error(500, "系统异常：" + e.getMessage());
+        return Response.error(ResponseCodeEnum.INTERNAL_ERROR);
     }
 
 }
