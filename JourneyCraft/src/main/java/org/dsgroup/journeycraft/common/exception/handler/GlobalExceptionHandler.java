@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理器
@@ -66,6 +67,15 @@ public class GlobalExceptionHandler {
     public Response<Void> handleNoHandlerFoundException(NoHandlerFoundException e) {
         log.warn("资源不存在：{}", e.getRequestURL());
         return Response.error(ResponseCodeEnum.NOT_FOUND);
+    }
+
+    /**
+     * 处理静态资源未找到异常（如favicon.ico）
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public Response<Void> handleNoResourceFoundException(NoResourceFoundException e) {
+        log.debug("静态资源不存在：{}", e.getResourcePath());
+        return Response.error(404, "静态资源不存在");
     }
 
     /**
