@@ -66,4 +66,3 @@ logging:
   level:
     root: INFO
     org.dsgroup.journeycraft: DEBUG
-
