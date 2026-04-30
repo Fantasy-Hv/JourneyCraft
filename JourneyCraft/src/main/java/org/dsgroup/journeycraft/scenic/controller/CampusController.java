@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 校园列表 HTTP 接口。
  */
 @RestController
-@RequestMapping("/api/v1/campus")
+@RequestMapping("/api/campus")
 @RequiredArgsConstructor
 public class CampusController {
 

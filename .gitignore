@@ -1,6 +1,9 @@
 # IDEA
 .idea/
 
+# Local Codex config
+.codex/
+
 # Maven
 target/
 
