@@ -3,7 +3,7 @@
 > **负责人**: 刘方正  
 > **分支**: `back-liu-feature`  
 > **最后更新**: 2026-04-30  
-> **Java 文件数**: 52  
+> **Java 文件数**: 49  
 
 ---
 
@@ -15,7 +15,7 @@
 | 单目标路径规划 | ✅ 100% | Dijkstra/A* 双算法，策略参数完整生效，支持 3 种策略 + 3 种交通方式 |
 | 多目标路线规划 | ✅ 100% | TSP 变种算法，支持返回起点、按访问顺序分段 |
 | 附近设施查询 | ✅ 100% | 基于路网实际路径距离排序（非直线距离） |
-| 实时拥挤度 | ✅ 100% | 数据记录、等级查询（调用 Scenic 模块 CrowdLevel） |
+| 实时拥挤度 | ✅ 100% | 调用 Scenic 模块 API 获取原始数据，Navigation 侧聚合计算 color + overallLevel |
 | 路线保存与历史 | ✅ 100% | 路线持久化、导航历史记录 |
 | 拍照点推荐 | 🟡 80% | 数据表+Service+Controller 已建，跨模块接口待补 |
 | 室内导航 | 🟡 30% | 数据表+Service 已建，Controller 为桩代码，算法未实现 |
@@ -100,7 +100,6 @@
 | `PathPlanningService` | `findNearestNodeByCoords()` | 查找距离坐标最近的路网节点（Haversine） |
 | `RoadNodeService` | CRUD + 按景区/建筑查询 | 路网节点管理 |
 | `RoadEdgeService` | CRUD + 按节点/交通方式查询 | 路径段管理 |
-| `CrowdLevelService` | CRUD + 按节点/时间查询 | 拥挤度数据管理 |
 | `PhotoSpotService` | CRUD + 按景区/评分查询 | 拍照点数据管理 |
 | `NavigationRouteService` | save/list/getById | 路线持久化 |
 | `NavigationHistoryService` | record/list/getByUser | 导航历史记录 |
@@ -125,19 +124,20 @@
 
 > ⚠️ **注意**: 这 3 张桩表仅在 Navigation 模块独立开发期间使用。Scenic 模块完成后，Navigation 应通过 Scenic 模块的 `api` 接口获取数据，不再使用桩表。
 
-### 4.2 Navigation 核心表（9 张）
+### 4.2 Navigation 核心表（8 张）
 
 | 表名 | 说明 | 关键字段 |
 |------|------|---------|
 | `t_navigation_road_node` | 路网节点表 | osm_id, scenic_area_id, node_type(0-5), latitude, longitude, floor_number |
 | `t_navigation_road_edge` | 路径段表 | from_node_id, to_node_id, distance, walk/bike/shuttle_time, transport_type, congestion_level |
-| `t_navigation_crowd_level` | 拥挤度记录表 | node_id, level(0-3), crowd_count, capacity, source(0-2), recorded_at |
 | `t_navigation_photo_spot` | 拍照点推荐表 | scenic_area_id, node_id, target_name, recommended_angle, best_time, rating, check_in_count |
 | `t_navigation_route_cache` | 路径规划缓存表 | start_node_id, end_node_id, transport_type, route_nodes(JSON), expires_at, hit_count |
 | `t_navigation_osm_import_log` | OSM 导入日志表 | file_name, import_type, total_records, success_count, status, processing_time_ms |
 | `t_navigation_indoor_floor` | 室内楼层表 | building_id, floor_number, floor_name, indoor_data(JSON), elevator/stair_node_id |
 | `t_navigation_route` | 导航路线表 | user_id, scenic_area_id, start_node_id, end_node_ids(JSON), path_nodes(JSON), total_distance, strategy |
 | `t_navigation_history` | 导航历史表 | user_id, scenic_area_id, start_node_id, end_node_id, path_nodes(JSON), navigated_at |
+
+> **拥挤度数据**: 不再由 Navigation 模块独立管理。Navigation 通过 `ScenicService.getCrowdLevelsByScenicArea()` API 从 Scenic 模块的 `t_crowd_level` 表读取数据，在 Navigation 侧聚合计算 color 和 overallLevel。Navigation 的 `t_navigation_crowd_level` 表和 CrowdLevelController 等代码已删除。
 
 ### 4.3 数据库视图（3 个）
 

@@ -243,17 +243,16 @@ class NavigationControllerTest {
     }
 
     /**
-     * 测试：获取实时拥挤度
+     * 测试：获取实时拥挤度（当前为待实现桩）
      */
     @Test
     void testGetCongestion() {
-        when(scenicService.getCrowdLevelsByScenicArea(eq(1L)))
-            .thenReturn(java.util.Collections.emptyList());
-
+        // TODO: 等 ScenicService.getCrowdLevelsByScenicArea() 就绪后恢复 mock
         Response<?> response = navigationController.getCongestion(1L);
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
+        assertEquals(200, response.getCode());
     }
 
     /**

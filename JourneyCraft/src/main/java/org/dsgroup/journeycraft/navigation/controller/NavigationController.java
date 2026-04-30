@@ -9,6 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.dsgroup.journeycraft.navigation.entity.NavigationRoute;
 import org.dsgroup.journeycraft.navigation.service.NavigationRouteService;
 import org.dsgroup.journeycraft.navigation.service.PathPlanningService;
+import org.dsgroup.journeycraft.navigation.vo.rspvo.CongestionRspVO;
+import org.dsgroup.journeycraft.navigation.vo.rspvo.NodeCongestionVO;
 import org.dsgroup.journeycraft.navigation.vo.rspvo.NearbyFacilityRspVO;
 import org.dsgroup.journeycraft.scenic.api.ScenicService;
 import org.dsgroup.journeycraft.scenic.entity.CrowdLevel;
@@ -228,38 +230,40 @@ public class NavigationController {
 
     @GetMapping("/congestion/{scenicId}")
     @Operation(summary = "获取实时拥挤度", description = "获取指定景区的实时拥挤度（调用 Scenic 模块）")
-    public Response<CongestionResult> getCongestion(
+    public Response<CongestionRspVO> getCongestion(
             @Parameter(description = "景区ID", required = true) @PathVariable Long scenicId) {
         try {
             log.info("获取景区 {} 的实时拥挤度", scenicId);
             
-            // 调用 Scenic 模块获取拥挤度数据
+            // 调用 Scenic 模块获取拥挤度原始数据
             List<CrowdLevel> crowdLevels = scenicService.getCrowdLevelsByScenicArea(scenicId);
             
-            CongestionResult result = new CongestionResult();
+            CongestionRspVO result = new CongestionRspVO();
             result.setScenicAreaId(scenicId);
             result.setUpdateTime(java.time.LocalDateTime.now().toString());
             
-            // 转换为节点拥挤度列表
-            List<CongestionResult.NodeCongestion> nodes = new java.util.ArrayList<>();
-            int sumLevel = 0;
+            if (crowdLevels == null || crowdLevels.isEmpty()) {
+                result.setOverallLevel(0);
+                result.setNodes(java.util.Collections.emptyList());
+                return Response.ok(result);
+            }
+            
+            // 转换为 NodeCongestionVO，color 由 Navigation 根据 level 推导
+            List<NodeCongestionVO> nodes = new java.util.ArrayList<>();
+            int maxLevel = 0;
             for (CrowdLevel cl : crowdLevels) {
-                CongestionResult.NodeCongestion nc = new CongestionResult.NodeCongestion();
+                NodeCongestionVO nc = new NodeCongestionVO();
                 nc.setNodeId(cl.getNodeId());
                 nc.setLevel(cl.getLevel());
                 nc.setCrowdCount(cl.getCrowdCount());
-                nc.setColor(cl.getColor());
+                nc.setColor(NodeCongestionVO.colorOf(cl.getLevel()));
                 nodes.add(nc);
-                sumLevel += cl.getLevel();
+                if (cl.getLevel() != null && cl.getLevel() > maxLevel) {
+                    maxLevel = cl.getLevel();
+                }
             }
             result.setNodes(nodes);
-            
-            // 计算整体拥挤等级
-            if (!crowdLevels.isEmpty()) {
-                result.setOverallLevel(sumLevel / crowdLevels.size());
-            } else {
-                result.setOverallLevel(0);
-            }
+            result.setOverallLevel(maxLevel);
             
             return Response.ok(result);
             
@@ -391,38 +395,6 @@ public class NavigationController {
         public void setEstimatedTime(Integer estimatedTime) { this.estimatedTime = estimatedTime; }
         public List<Segment> getSegments() { return segments; }
         public void setSegments(List<Segment> segments) { this.segments = segments; }
-    }
-
-    public static class CongestionResult {
-        private Long scenicAreaId;
-        private Integer overallLevel;
-        private String updateTime;
-        private List<NodeCongestion> nodes;
-
-        public static class NodeCongestion {
-            private Long nodeId;
-            private Integer level;
-            private Integer crowdCount;
-            private String color;
-
-            public Long getNodeId() { return nodeId; }
-            public void setNodeId(Long nodeId) { this.nodeId = nodeId; }
-            public Integer getLevel() { return level; }
-            public void setLevel(Integer level) { this.level = level; }
-            public Integer getCrowdCount() { return crowdCount; }
-            public void setCrowdCount(Integer crowdCount) { this.crowdCount = crowdCount; }
-            public String getColor() { return color; }
-            public void setColor(String color) { this.color = color; }
-        }
-
-        public Long getScenicAreaId() { return scenicAreaId; }
-        public void setScenicAreaId(Long scenicAreaId) { this.scenicAreaId = scenicAreaId; }
-        public Integer getOverallLevel() { return overallLevel; }
-        public void setOverallLevel(Integer overallLevel) { this.overallLevel = overallLevel; }
-        public String getUpdateTime() { return updateTime; }
-        public void setUpdateTime(String updateTime) { this.updateTime = updateTime; }
-        public List<NodeCongestion> getNodes() { return nodes; }
-        public void setNodes(List<NodeCongestion> nodes) { this.nodes = nodes; }
     }
 
     public static class AlternativeRouteResult {
