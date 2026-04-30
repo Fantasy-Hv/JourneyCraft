@@ -198,29 +198,9 @@ public class ScenicServiceImpl implements ScenicService {
         crowdLevel.setLevel(reqVO.getLevel());
         crowdLevel.setCrowdCount(reqVO.getCrowdCount());
         crowdLevel.setSource(1);
-        crowdLevel.setRecordedAt(java.util.Date.from(LocalDateTime.now().atZone(java.time.ZoneId.systemDefault()).toInstant()));
-        crowdLevel.setCreatedAt(java.util.Date.from(LocalDateTime.now().atZone(java.time.ZoneId.systemDefault()).toInstant()));
+        crowdLevel.setRecordedAt(LocalDateTime.now());
+        crowdLevel.setCreatedAt(LocalDateTime.now());
         crowdLevelMapper.insert(crowdLevel);
-    }
-
-    /**
-     * 获取景区的最新拥挤度数据（供 Navigation 4.5 接口调用）
-     * <p>
-     * 返回每个节点最新的一条记录
-     */
-    @Override
-    public List<CrowdLevel> getCrowdLevelsByScenicArea(Long scenicAreaId) {
-        // 查询该景区的所有拥挤度记录
-        List<CrowdLevel> allRecords = crowdLevelMapper.selectList(lambdaQuery(CrowdLevel.class)
-                .eq(CrowdLevel::getScenicAreaId, scenicAreaId)
-                .orderByDesc(CrowdLevel::getRecordedAt));
-        
-        // 按节点分组，每组取最新一条
-        return allRecords.stream()
-                .collect(java.util.stream.Collectors.groupingBy(CrowdLevel::getNodeId))
-                .values().stream()
-                .map(list -> list.get(0))  // 每组取第一条（已按时间排序）
-                .collect(java.util.stream.Collectors.toList());
     }
 
     /**

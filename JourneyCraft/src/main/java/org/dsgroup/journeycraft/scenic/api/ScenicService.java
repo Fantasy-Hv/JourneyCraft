@@ -1,6 +1,5 @@
 package org.dsgroup.journeycraft.scenic.api;
 
-import org.dsgroup.journeycraft.scenic.entity.CrowdLevel;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.BuildingListReqVO;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.FacilityListReqVO;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.ReportCrowdReqVO;
@@ -52,12 +51,4 @@ public interface ScenicService {
      * 获取校园列表。
      */
     ScenicListRspVO listCampus(ScenicListReqVO reqVO);
-
-    /**
-     * 获取景区的最新拥挤度数据（供 Navigation 4.5 接口调用）
-     *
-     * @param scenicAreaId 景区ID
-     * @return 拥挤度记录列表（每个节点取最新一条）
-     */
-    List<CrowdLevel> getCrowdLevelsByScenicArea(Long scenicAreaId);
 }
