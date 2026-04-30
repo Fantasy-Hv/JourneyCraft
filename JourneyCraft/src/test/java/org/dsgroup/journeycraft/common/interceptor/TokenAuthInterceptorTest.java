@@ -30,7 +30,7 @@ class TokenAuthInterceptorTest {
     @Test
     void preHandleShouldAllowValidToken() {
         TokenSessionStore.TokenPair tokenPair = tokenSessionStore.issue(1001L, 60, 600);
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/user/info");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/user/info");
         request.addHeader("Authorization", "Bearer " + tokenPair.accessToken());
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -40,7 +40,7 @@ class TokenAuthInterceptorTest {
 
     @Test
     void preHandleShouldRejectMissingToken() {
-        HttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/user/info");
+        HttpServletRequest request = new MockHttpServletRequest("GET", "/api/user/info");
         HttpServletResponse response = new MockHttpServletResponse();
 
         assertThrows(BusinessException.class, () -> interceptor.preHandle(request, response, new Object()));

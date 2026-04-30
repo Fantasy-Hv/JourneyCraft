@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 用户模块 HTTP 接口。
  */
 @RestController
-@RequestMapping("/api/v1/user")
+@RequestMapping("/api/user")
 @RequiredArgsConstructor
 public class UserController {
 
