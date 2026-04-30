@@ -26,7 +26,7 @@ import java.util.List;
  * 景点模块 HTTP 接口。
  */
 @RestController
-@RequestMapping("/api/v1/scenic")
+@RequestMapping("/api/scenic")
 @RequiredArgsConstructor
 public class ScenicController {
 

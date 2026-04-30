@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 认证模块 HTTP 接口。
  */
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
