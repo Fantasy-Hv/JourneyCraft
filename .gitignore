@@ -1,0 +1,22 @@
+# IDEA
+.idea/
+
+# Maven
+target/
+
+# Gradle
+.gradle/
+build/
+
+# Log files
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
