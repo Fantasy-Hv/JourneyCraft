@@ -3,7 +3,7 @@ package org.dsgroup.journeycraft.navigation.service.impl;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.dsgroup.journeycraft.navigation.entity.CrowdLevel;
-import org.dsgroup.journeycraft.navigation.mapper.CrowdLevelMapper;
+import org.dsgroup.journeycraft.navigation.mapper.NavigationCrowdLevelMapper;
 import org.dsgroup.journeycraft.navigation.service.CrowdLevelService;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +19,7 @@ import java.util.List;
  */
 @Slf4j
 @Service
-public class CrowdLevelServiceImpl extends ServiceImpl<CrowdLevelMapper, CrowdLevel> implements CrowdLevelService {
+public class CrowdLevelServiceImpl extends ServiceImpl<NavigationCrowdLevelMapper, CrowdLevel> implements CrowdLevelService {
 
     @Override
     public List<CrowdLevel> getCrowdLevelsByNode(Long nodeId) {

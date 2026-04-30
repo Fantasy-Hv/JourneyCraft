@@ -21,7 +21,7 @@ import java.util.List;
  */
 @Mapper
 @Repository
-public interface CrowdLevelMapper extends BaseMapper<CrowdLevel> {
+public interface NavigationCrowdLevelMapper extends BaseMapper<CrowdLevel> {
 
     /**
      * 根据节点ID查询拥挤度记录
