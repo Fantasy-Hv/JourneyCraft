@@ -3,6 +3,9 @@ package org.dsgroup.journeycraft.navigation.controller;
 import org.dsgroup.journeycraft.common.result.Response;
 import org.dsgroup.journeycraft.navigation.service.PathPlanningService;
 import org.dsgroup.journeycraft.navigation.service.NavigationRouteService;
+import org.dsgroup.journeycraft.scenic.api.ScenicService;
+import org.dsgroup.journeycraft.scenic.vo.reqvo.FacilityListReqVO;
+import org.dsgroup.journeycraft.scenic.vo.rspvo.FacilityRspVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,6 +39,9 @@ class NavigationControllerTest {
     @Mock
     private NavigationRouteService navigationRouteService;
 
+    @Mock
+    private ScenicService scenicService;
+
     private NavigationController navigationController;
 
     @BeforeEach
@@ -50,6 +56,10 @@ class NavigationControllerTest {
             java.lang.reflect.Field routeField = NavigationController.class.getDeclaredField("navigationRouteService");
             routeField.setAccessible(true);
             routeField.set(navigationController, navigationRouteService);
+
+            java.lang.reflect.Field scenicField = NavigationController.class.getDeclaredField("scenicService");
+            scenicField.setAccessible(true);
+            scenicField.set(navigationController, scenicService);
         } catch (Exception e) {
             fail("Failed to inject mocks: " + e.getMessage());
         }
@@ -65,11 +75,65 @@ class NavigationControllerTest {
             .thenReturn(mockResult);
 
         Response<?> response = navigationController.calculateRoute(
-            1L, 1L, 5L, "shortest_distance", "walk");
+                1L, 1L, 5L, "shortest_distance", "walk", "dijkstra");
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
         assertEquals(200, response.getCode());
+    }
+
+    /**
+     * 测试：单目标路径规划 - A* 算法
+     */
+    @Test
+    void testCalculateRoute_AStar() {
+        PathPlanningService.PathPlanningResult mockResult = createMockPathResult();
+        when(pathPlanningService.calculateAStarPath(eq(1L), eq(5L), eq(1), eq("shortest_distance")))
+            .thenReturn(mockResult);
+
+        Response<?> response = navigationController.calculateRoute(
+                1L, 1L, 5L, "shortest_distance", "walk", "astar");
+
+        assertNotNull(response);
+        assertTrue(response.isSuccess());
+        verify(pathPlanningService).calculateAStarPath(anyLong(), anyLong(), anyInt(), anyString());
+        verify(pathPlanningService, never()).calculateShortestPath(anyLong(), anyLong(), anyInt(), anyString());
+    }
+
+    /**
+     * 测试：单目标路径规划 - shortest_time 策略（验证策略参数传递）
+     */
+    @Test
+    void testCalculateRoute_ShortestTimeStrategy() {
+        PathPlanningService.PathPlanningResult mockResult = createMockPathResult();
+        mockResult.setStrategy("shortest_time");
+        when(pathPlanningService.calculateShortestPath(eq(1L), eq(10L), eq(1), eq("shortest_time")))
+            .thenReturn(mockResult);
+
+        Response<?> response = navigationController.calculateRoute(
+                1L, 1L, 10L, "shortest_time", "walk", "dijkstra");
+
+        assertNotNull(response);
+        assertTrue(response.isSuccess());
+        assertEquals("shortest_time", ((PathPlanningService.PathPlanningResult)response.getData()).getStrategy());
+    }
+
+    /**
+     * 测试：单目标路径规划 - avoid_crowd 策略
+     */
+    @Test
+    void testCalculateRoute_AvoidCrowdStrategy() {
+        PathPlanningService.PathPlanningResult mockResult = createMockPathResult();
+        mockResult.setStrategy("avoid_crowd");
+        when(pathPlanningService.calculateShortestPath(eq(1L), eq(5L), eq(1), eq("avoid_crowd")))
+            .thenReturn(mockResult);
+
+        Response<?> response = navigationController.calculateRoute(
+                1L, 1L, 5L, "avoid_crowd", "walk", "dijkstra");
+
+        assertNotNull(response);
+        assertTrue(response.isSuccess());
+        assertEquals("avoid_crowd", ((PathPlanningService.PathPlanningResult)response.getData()).getStrategy());
     }
 
     /**
@@ -81,7 +145,7 @@ class NavigationControllerTest {
             .thenReturn(null);
 
         Response<?> response = navigationController.calculateRoute(
-            1L, 1L, 999L, "shortest_distance", "walk");
+                1L, 1L, 999L, "shortest_distance", "walk", "dijkstra");
 
         assertNotNull(response);
         assertFalse(response.isSuccess());
@@ -101,7 +165,7 @@ class NavigationControllerTest {
             .thenReturn(bikeResult);
 
         Response<?> response = navigationController.calculateRoute(
-            1L, 1L, 5L, "shortest_distance", "bike");
+                1L, 1L, 5L, "shortest_distance", "bike", "dijkstra");
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
@@ -169,10 +233,26 @@ class NavigationControllerTest {
      */
     @Test
     void testGetNearbyFacilities() {
+        when(scenicService.listFacilities(eq(1L), any(FacilityListReqVO.class)))
+            .thenReturn(java.util.Collections.emptyList());
+
         Response<?> response = navigationController.getNearbyFacilities(1L, 1L, null, 500, 10);
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
+    }
+
+    /**
+     * 测试：获取实时拥挤度（当前为待实现桩）
+     */
+    @Test
+    void testGetCongestion() {
+        // TODO: 等 ScenicService.getCrowdLevelsByScenicArea() 就绪后恢复 mock
+        Response<?> response = navigationController.getCongestion(1L);
+
+        assertNotNull(response);
+        assertTrue(response.isSuccess());
+        assertEquals(200, response.getCode());
     }
 
     /**
@@ -182,17 +262,6 @@ class NavigationControllerTest {
     void testCalculateIndoorRoute() {
         Response<?> response = navigationController.calculateIndoorRoute(
             1L, 1, "entrance", 2, "room-201");
-
-        assertNotNull(response);
-        assertTrue(response.isSuccess());
-    }
-
-    /**
-     * 测试：获取实时拥挤度
-     */
-    @Test
-    void testGetCongestion() {
-        Response<?> response = navigationController.getCongestion(1L);
 
         assertNotNull(response);
         assertTrue(response.isSuccess());

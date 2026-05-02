@@ -9,6 +9,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.dsgroup.journeycraft.navigation.entity.NavigationRoute;
 import org.dsgroup.journeycraft.navigation.service.NavigationRouteService;
 import org.dsgroup.journeycraft.navigation.service.PathPlanningService;
+import org.dsgroup.journeycraft.navigation.vo.rspvo.CongestionRspVO;
+import org.dsgroup.journeycraft.navigation.vo.rspvo.NodeCongestionVO;
+import org.dsgroup.journeycraft.navigation.vo.rspvo.NearbyFacilityRspVO;
+import org.dsgroup.journeycraft.scenic.api.ScenicService;
+import org.dsgroup.journeycraft.scenic.entity.CrowdLevel;
+import org.dsgroup.journeycraft.scenic.vo.reqvo.FacilityListReqVO;
+import org.dsgroup.journeycraft.scenic.vo.rspvo.FacilityRspVO;
 import org.dsgroup.journeycraft.common.result.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -35,23 +42,33 @@ public class NavigationController {
     @Autowired
     private NavigationRouteService navigationRouteService;
     
+    @Autowired
+    private ScenicService scenicService;
+    
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostMapping("/route")
-    @Operation(summary = "单目标路径规划", description = "计算从起点到终点的最优路径")
+    @Operation(summary = "单目标路径规划", description = "计算从起点到终点的最优路径，支持 Dijkstra 和 A* 两种算法")
     public Response<PathPlanningService.PathPlanningResult> calculateRoute(
             @Parameter(description = "景区ID", required = true) @RequestParam Long scenicAreaId,
             @Parameter(description = "起点节点ID", required = true) @RequestParam Long startNodeId,
             @Parameter(description = "终点节点ID", required = true) @RequestParam Long endNodeId,
             @Parameter(description = "规划策略") @RequestParam(required = false, defaultValue = "shortest_distance") String strategy,
-            @Parameter(description = "交通方式: walk/bike/shuttle") @RequestParam(required = false, defaultValue = "walk") String transportMode) {
+            @Parameter(description = "交通方式: walk/bike/shuttle") @RequestParam(required = false, defaultValue = "walk") String transportMode,
+            @Parameter(description = "算法: dijkstra/astar") @RequestParam(required = false, defaultValue = "dijkstra") String algorithm) {
         try {
-            log.info("单目标路径规划: 景区={}, 起点={}, 终点={}, 策略={}, 交通方式={}", 
-                     scenicAreaId, startNodeId, endNodeId, strategy, transportMode);
+            log.info("单目标路径规划: 景区={}, 起点={}, 终点={}, 策略={}, 交通方式={}, 算法={}", 
+                     scenicAreaId, startNodeId, endNodeId, strategy, transportMode, algorithm);
             
             Integer mode = parseTransportMode(transportMode);
-            PathPlanningService.PathPlanningResult result = 
-                pathPlanningService.calculateShortestPath(startNodeId, endNodeId, mode, strategy);
+            PathPlanningService.PathPlanningResult result;
+            
+            // 根据算法参数选择 Dijkstra 或 A*
+            if ("astar".equalsIgnoreCase(algorithm)) {
+                result = pathPlanningService.calculateAStarPath(startNodeId, endNodeId, mode, strategy);
+            } else {
+                result = pathPlanningService.calculateShortestPath(startNodeId, endNodeId, mode, strategy);
+            }
             
             if (result == null) {
                 return Response.error("未找到可行路径");
@@ -103,17 +120,81 @@ public class NavigationController {
     }
 
     @GetMapping("/facilities/nearby")
-    @Operation(summary = "获取附近设施", description = "根据地理位置查询附近的设施")
-    public Response<List> getNearbyFacilities(
+    @Operation(summary = "获取附近设施", description = "根据节点位置查询附近的设施（基于实际路径距离）")
+    public Response<List<NearbyFacilityRspVO>> getNearbyFacilities(
             @Parameter(description = "景区ID", required = true) @RequestParam Long scenicAreaId,
             @Parameter(description = "节点ID", required = true) @RequestParam Long nodeId,
             @Parameter(description = "设施类型") @RequestParam(required = false) Integer type,
             @Parameter(description = "搜索半径（米）") @RequestParam(required = false, defaultValue = "500") Integer radius,
             @Parameter(description = "返回数量限制") @RequestParam(required = false, defaultValue = "10") Integer limit) {
         try {
-            log.info("查询附近设施: 景区={}, 节点={}, 类型={}, 半径={}米", scenicAreaId, nodeId, type, radius);
-            // TODO: 实现设施查询（需要调用scenic模块）
-            return Response.ok(java.util.Collections.emptyList());
+            log.info("查询附近设施: 景区={}, 节点={}, 类型={}, 半径={}米, 限制={}", 
+                     scenicAreaId, nodeId, type, radius, limit);
+            
+            // ★ 通过 Scenic 模块 API 获取设施列表（替代临时 TempFacilityService）
+            FacilityListReqVO reqVO = new FacilityListReqVO();
+            reqVO.setType(type);
+            List<FacilityRspVO> facilities = scenicService.listFacilities(scenicAreaId, reqVO);
+            
+            if (facilities == null || facilities.isEmpty()) {
+                log.info("景区{}没有找到设施", scenicAreaId);
+                return Response.ok(java.util.Collections.emptyList());
+            }
+            
+            // 计算每个设施到当前节点的实际路径距离
+            List<NearbyFacilityRspVO> results = new java.util.ArrayList<>();
+            for (FacilityRspVO facility : facilities) {
+                // 通过设施ID找到关联的路网节点
+                Long facilityNodeId = pathPlanningService.getFacilityNodeId(facility.getId());
+                if (facilityNodeId == null) {
+                    log.debug("设施{}没有关联的路网节点，跳过", facility.getId());
+                    continue;
+                }
+                
+                // 计算从当前节点到设施节点的实际路径距离
+                java.math.BigDecimal distance = null;
+                if (nodeId.equals(facilityNodeId)) {
+                    distance = java.math.BigDecimal.ZERO;
+                } else {
+                    PathPlanningService.PathPlanningResult pathResult = 
+                        pathPlanningService.calculateShortestPath(nodeId, facilityNodeId, 1, "shortest_distance");
+                    if (pathResult != null) {
+                        distance = pathResult.getTotalDistance();
+                    }
+                }
+                
+                if (distance == null) {
+                    log.debug("无法计算设施{}到节点{}的路径，跳过", facility.getId(), nodeId);
+                    continue;
+                }
+                
+                // 过滤超出半径的设施
+                if (distance.doubleValue() > radius) {
+                    continue;
+                }
+                
+                // 构建返回结果
+                NearbyFacilityRspVO rspVO = new NearbyFacilityRspVO();
+                rspVO.setId(facility.getId());
+                rspVO.setName(facility.getName());
+                rspVO.setType(facility.getType());
+                rspVO.setLatitude(facility.getLatitude());
+                rspVO.setLongitude(facility.getLongitude());
+                rspVO.setDistance(distance);
+                results.add(rspVO);
+            }
+            
+            // 3. 按距离排序
+            results.sort((a, b) -> a.getDistance().compareTo(b.getDistance()));
+            
+            // 4. 限制返回数量
+            if (results.size() > limit) {
+                results = results.subList(0, limit);
+            }
+            
+            log.info("找到{}个附近设施", results.size());
+            return Response.ok(results);
+            
         } catch (Exception e) {
             log.error("查询附近设施失败", e);
             return Response.error("查询附近设施失败: " + e.getMessage());
@@ -148,20 +229,44 @@ public class NavigationController {
     }
 
     @GetMapping("/congestion/{scenicId}")
-    @Operation(summary = "获取实时拥挤度", description = "获取指定景区的实时拥挤度")
-    public Response<CongestionResult> getCongestion(
+    @Operation(summary = "获取实时拥挤度", description = "获取指定景区的实时拥挤度（调用 Scenic 模块）")
+    public Response<CongestionRspVO> getCongestion(
             @Parameter(description = "景区ID", required = true) @PathVariable Long scenicId) {
         try {
             log.info("获取景区 {} 的实时拥挤度", scenicId);
             
-            // TODO: 实现拥挤度查询
-            CongestionResult result = new CongestionResult();
+            // 调用 Scenic 模块获取拥挤度原始数据
+            List<CrowdLevel> crowdLevels = scenicService.getCrowdLevelsByScenicArea(scenicId);
+            
+            CongestionRspVO result = new CongestionRspVO();
             result.setScenicAreaId(scenicId);
-            result.setOverallLevel(1);
             result.setUpdateTime(java.time.LocalDateTime.now().toString());
-            result.setNodes(java.util.Collections.emptyList());
+            
+            if (crowdLevels == null || crowdLevels.isEmpty()) {
+                result.setOverallLevel(0);
+                result.setNodes(java.util.Collections.emptyList());
+                return Response.ok(result);
+            }
+            
+            // 转换为 NodeCongestionVO，color 由 Navigation 根据 level 推导
+            List<NodeCongestionVO> nodes = new java.util.ArrayList<>();
+            int maxLevel = 0;
+            for (CrowdLevel cl : crowdLevels) {
+                NodeCongestionVO nc = new NodeCongestionVO();
+                nc.setNodeId(cl.getNodeId());
+                nc.setLevel(cl.getLevel());
+                nc.setCrowdCount(cl.getCrowdCount());
+                nc.setColor(NodeCongestionVO.colorOf(cl.getLevel()));
+                nodes.add(nc);
+                if (cl.getLevel() != null && cl.getLevel() > maxLevel) {
+                    maxLevel = cl.getLevel();
+                }
+            }
+            result.setNodes(nodes);
+            result.setOverallLevel(maxLevel);
             
             return Response.ok(result);
+            
         } catch (Exception e) {
             log.error("获取拥挤度失败", e);
             return Response.error("获取拥挤度失败: " + e.getMessage());
@@ -290,38 +395,6 @@ public class NavigationController {
         public void setEstimatedTime(Integer estimatedTime) { this.estimatedTime = estimatedTime; }
         public List<Segment> getSegments() { return segments; }
         public void setSegments(List<Segment> segments) { this.segments = segments; }
-    }
-
-    public static class CongestionResult {
-        private Long scenicAreaId;
-        private Integer overallLevel;
-        private String updateTime;
-        private List<NodeCongestion> nodes;
-
-        public static class NodeCongestion {
-            private Long nodeId;
-            private Integer level;
-            private Integer crowdCount;
-            private String color;
-
-            public Long getNodeId() { return nodeId; }
-            public void setNodeId(Long nodeId) { this.nodeId = nodeId; }
-            public Integer getLevel() { return level; }
-            public void setLevel(Integer level) { this.level = level; }
-            public Integer getCrowdCount() { return crowdCount; }
-            public void setCrowdCount(Integer crowdCount) { this.crowdCount = crowdCount; }
-            public String getColor() { return color; }
-            public void setColor(String color) { this.color = color; }
-        }
-
-        public Long getScenicAreaId() { return scenicAreaId; }
-        public void setScenicAreaId(Long scenicAreaId) { this.scenicAreaId = scenicAreaId; }
-        public Integer getOverallLevel() { return overallLevel; }
-        public void setOverallLevel(Integer overallLevel) { this.overallLevel = overallLevel; }
-        public String getUpdateTime() { return updateTime; }
-        public void setUpdateTime(String updateTime) { this.updateTime = updateTime; }
-        public List<NodeCongestion> getNodes() { return nodes; }
-        public void setNodes(List<NodeCongestion> nodes) { this.nodes = nodes; }
     }
 
     public static class AlternativeRouteResult {

@@ -31,6 +31,21 @@ public interface PathPlanningService {
                                             Integer transportMode, String strategy);
 
     /**
+     * 单目标路径规划（A*算法）
+     * <p>
+     * 使用 Haversine 直线距离作为启发式函数，在大多数场景下比 Dijkstra 探索更少节点。
+     * 启发式函数具有可采纳性（admissible），保证找到最优解。
+     *
+     * @param startNodeId 起点节点ID
+     * @param endNodeId 终点节点ID
+     * @param transportMode 交通方式: 1=步行, 2=骑行, 3=驾驶
+     * @param strategy 规划策略: shortest_distance/shortest_time/avoid_crowd
+     * @return 路径规划结果
+     */
+    PathPlanningResult calculateAStarPath(Long startNodeId, Long endNodeId,
+                                          Integer transportMode, String strategy);
+
+    /**
      * 多目标路线规划（TSP变种算法）
      * <p>
      * 计算从起点出发，访问所有目标节点的最优路线
@@ -62,6 +77,28 @@ public interface PathPlanningService {
      * @return 时间（秒），如果路径不存在返回null
      */
     Integer getTimeBetweenNodes(Long fromNodeId, Long toNodeId, Integer transportMode);
+
+    /**
+     * 获取设施关联的节点ID
+     * <p>
+     * 通过设施ID查找关联的路网节点
+     *
+     * @param facilityId 设施ID
+     * @return 关联的节点ID，如果不存在返回null
+     */
+    Long getFacilityNodeId(Long facilityId);
+
+    /**
+     * 查找距离给定坐标最近的路网节点。
+     * <p>
+     * 使用 Haversine 公式计算各节点到 (lat, lng) 的直线距离，返回最近的节点ID。
+     * 当前实现为全表扫描，节点数量 < 1000 时性能可接受。
+     *
+     * @param lat 目标纬度
+     * @param lng 目标经度
+     * @return 最近节点的ID，无可用节点返回 null
+     */
+    Long findNearestNodeByCoords(BigDecimal lat, BigDecimal lng);
 
     /**
      * 路径规划结果
