@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Comparator;
 
 /**
  * 导航核心控制器
@@ -240,10 +241,10 @@ public class NavigationController {
             
             CongestionRspVO result = new CongestionRspVO();
             result.setScenicAreaId(scenicId);
-            result.setUpdateTime(java.time.LocalDateTime.now().toString());
             
             if (crowdLevels == null || crowdLevels.isEmpty()) {
                 result.setOverallLevel(0);
+                result.setUpdateTime(null);
                 result.setNodes(java.util.Collections.emptyList());
                 return Response.ok(result);
             }
@@ -264,6 +265,12 @@ public class NavigationController {
             }
             result.setNodes(nodes);
             result.setOverallLevel(maxLevel);
+            result.setUpdateTime(crowdLevels.stream()
+                    .map(CrowdLevel::getRecordedAt)
+                    .filter(java.util.Objects::nonNull)
+                    .max(Comparator.naturalOrder())
+                    .map(java.time.LocalDateTime::toString)
+                    .orElse(null));
             
             return Response.ok(result);
             

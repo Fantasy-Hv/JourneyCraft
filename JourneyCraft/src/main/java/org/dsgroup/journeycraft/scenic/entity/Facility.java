@@ -22,6 +22,8 @@ public class Facility {
 
     private Long buildingId;
 
+    private Long nodeId;
+
     private String name;
 
     private Integer type;

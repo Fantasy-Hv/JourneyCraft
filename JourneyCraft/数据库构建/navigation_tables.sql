@@ -3,8 +3,8 @@
 -- 生成日期: 2026-04-30
 -- 生成方式: 读取 MySQL journeycraft 数据库实际结构
 -- 负责人: 刘方正
--- 包含 9 张表: road_node, road_edge, route,
---   crowd_level, photo_spot, indoor_floor,
+-- 包含 8 张表: road_node, road_edge, route,
+--   photo_spot, indoor_floor,
 --   route_cache, osm_import_log, history
 -- =============================================
 
@@ -39,8 +39,8 @@ CREATE TABLE `t_navigation_road_node` (
   KEY `idx_node_type` (`node_type`),
   KEY `idx_important` (`is_important`),
   KEY `idx_status` (`is_enabled`),
-  CONSTRAINT `t_navigation_road_node_ibfk_1` FOREIGN KEY (`scenic_area_id`) REFERENCES `t_temp_scenic_area` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `t_navigation_road_node_ibfk_2` FOREIGN KEY (`building_id`) REFERENCES `t_temp_building` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `t_navigation_road_node_ibfk_1` FOREIGN KEY (`scenic_area_id`) REFERENCES `t_scenic_area` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `t_navigation_road_node_ibfk_2` FOREIGN KEY (`building_id`) REFERENCES `t_building` (`id`) ON DELETE SET NULL,
   CONSTRAINT `t_navigation_road_node_ibfk_3` FOREIGN KEY (`facility_id`) REFERENCES `t_facility` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='路网节点表(基于OSM节点，关联scenic模块实体)'
 ;
@@ -109,40 +109,9 @@ CREATE TABLE `t_navigation_route` (
   KEY `idx_scenic_area` (`scenic_area_id`),
   KEY `idx_created` (`created_at`),
   KEY `start_node_id` (`start_node_id`),
-  CONSTRAINT `t_navigation_route_ibfk_1` FOREIGN KEY (`scenic_area_id`) REFERENCES `t_temp_scenic_area` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `t_navigation_route_ibfk_1` FOREIGN KEY (`scenic_area_id`) REFERENCES `t_scenic_area` (`id`) ON DELETE CASCADE,
   CONSTRAINT `t_navigation_route_ibfk_2` FOREIGN KEY (`start_node_id`) REFERENCES `t_navigation_road_node` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=38 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='导航路线表(用户规划路线)'
-;
--- ----------------------------------------------------
--- Table: t_navigation_crowd_level
--- ----------------------------------------------------
-DROP TABLE IF EXISTS `t_navigation_crowd_level`;
-CREATE TABLE `t_navigation_crowd_level` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '记录ID',
-  `node_id` bigint NOT NULL COMMENT '节点ID',
-  `scenic_area_id` bigint DEFAULT NULL COMMENT '所属景区ID(冗余)',
-  `level` tinyint NOT NULL DEFAULT '0' COMMENT '拥挤等级: 0=舒适(<30%),1=适中(30-60%),2=拥挤(60-85%),3=非常拥挤(>85%)',
-  `crowd_count` int DEFAULT NULL COMMENT '实际人数',
-  `capacity` int DEFAULT NULL COMMENT '容量上限',
-  `density` decimal(5,2) DEFAULT NULL COMMENT '密度(人/平方米)',
-  `source` tinyint DEFAULT '1' COMMENT '来源: 0=传感器,1=用户上报,2=算法预测,3=历史均值',
-  `recorded_at` datetime NOT NULL COMMENT '记录时间',
-  `predicted_at` datetime DEFAULT NULL COMMENT '预测时间(用于未来预测)',
-  `valid_until` datetime DEFAULT NULL COMMENT '有效期至',
-  `confidence` decimal(3,2) DEFAULT '1.00' COMMENT '数据可信度(0-1)',
-  `reporter_user_id` bigint DEFAULT NULL COMMENT '上报用户ID',
-  `is_deleted` tinyint NOT NULL DEFAULT '0' COMMENT '是否删除: 0=否,1=是',
-  `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_node` (`node_id`),
-  KEY `idx_recorded` (`recorded_at`),
-  KEY `idx_source` (`source`),
-  KEY `idx_valid` (`valid_until`),
-  KEY `idx_level` (`level`),
-  KEY `idx_scenic_area` (`scenic_area_id`),
-  KEY `idx_crowd_scenic_area` (`scenic_area_id`),
-  CONSTRAINT `t_navigation_crowd_level_ibfk_1` FOREIGN KEY (`node_id`) REFERENCES `t_navigation_road_node` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='拥挤度记录表(支持实时上报和预测)'
 ;
 -- ----------------------------------------------------
 -- Table: t_navigation_photo_spot
@@ -173,7 +142,7 @@ CREATE TABLE `t_navigation_photo_spot` (
   KEY `idx_rating` (`rating`),
   KEY `idx_location` (`latitude`,`longitude`),
   KEY `idx_status` (`is_enabled`),
-  CONSTRAINT `t_navigation_photo_spot_ibfk_1` FOREIGN KEY (`scenic_area_id`) REFERENCES `t_temp_scenic_area` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `t_navigation_photo_spot_ibfk_1` FOREIGN KEY (`scenic_area_id`) REFERENCES `t_scenic_area` (`id`) ON DELETE CASCADE,
   CONSTRAINT `t_navigation_photo_spot_ibfk_2` FOREIGN KEY (`node_id`) REFERENCES `t_navigation_road_node` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='拍照点推荐表'
 ;
@@ -201,11 +170,34 @@ CREATE TABLE `t_navigation_indoor_floor` (
   KEY `idx_floor_number` (`floor_number`),
   KEY `elevator_node_id` (`elevator_node_id`),
   KEY `stair_node_id` (`stair_node_id`),
-  CONSTRAINT `t_navigation_indoor_floor_ibfk_1` FOREIGN KEY (`building_id`) REFERENCES `t_temp_building` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `t_navigation_indoor_floor_ibfk_1` FOREIGN KEY (`building_id`) REFERENCES `t_building` (`id`) ON DELETE CASCADE,
   CONSTRAINT `t_navigation_indoor_floor_ibfk_2` FOREIGN KEY (`elevator_node_id`) REFERENCES `t_navigation_road_node` (`id`) ON DELETE SET NULL,
   CONSTRAINT `t_navigation_indoor_floor_ibfk_3` FOREIGN KEY (`stair_node_id`) REFERENCES `t_navigation_road_node` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='室内楼层表'
 ;
+-- ----------------------------------------------------
+-- scenic 模块与导航主节点的外键绑定
+-- 说明：scenic_schema.sql 需先执行，再执行本脚本
+-- ----------------------------------------------------
+ALTER TABLE `t_scenic_area`
+  ADD CONSTRAINT `fk_scenic_area_node`
+  FOREIGN KEY (`node_id`) REFERENCES `t_navigation_road_node` (`id`)
+  ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE `t_building`
+  ADD CONSTRAINT `fk_building_node`
+  FOREIGN KEY (`node_id`) REFERENCES `t_navigation_road_node` (`id`)
+  ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE `t_facility`
+  ADD CONSTRAINT `fk_facility_node`
+  FOREIGN KEY (`node_id`) REFERENCES `t_navigation_road_node` (`id`)
+  ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE `t_crowd_level`
+  ADD CONSTRAINT `fk_crowd_level_node`
+  FOREIGN KEY (`node_id`) REFERENCES `t_navigation_road_node` (`id`)
+  ON DELETE CASCADE ON UPDATE CASCADE;
 -- ----------------------------------------------------
 -- Table: t_navigation_route_cache
 -- ----------------------------------------------------

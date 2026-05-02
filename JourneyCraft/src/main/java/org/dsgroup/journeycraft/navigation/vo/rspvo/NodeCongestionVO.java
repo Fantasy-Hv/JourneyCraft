@@ -20,7 +20,7 @@ public class NodeCongestionVO {
     /** 人数 */
     private Integer crowdCount;
 
-    /** 显示颜色: green / yellow / orange / red */
+    /** 显示颜色: green / yellow / red */
     private String color;
 
     /**
@@ -31,8 +31,7 @@ public class NodeCongestionVO {
         return switch (level) {
             case 0 -> "green";
             case 1 -> "yellow";
-            case 2 -> "orange";
-            case 3 -> "red";
+            case 2, 3 -> "red";
             default -> "green";
         };
     }

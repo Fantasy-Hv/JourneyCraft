@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
@@ -201,6 +202,29 @@ public class ScenicServiceImpl implements ScenicService {
         crowdLevel.setRecordedAt(LocalDateTime.now());
         crowdLevel.setCreatedAt(LocalDateTime.now());
         crowdLevelMapper.insert(crowdLevel);
+    }
+
+    /**
+     * 查询景区下各节点最新拥挤度记录。
+     */
+    @Override
+    public List<CrowdLevel> getCrowdLevelsByScenicArea(Long scenicId) {
+        List<CrowdLevel> records = crowdLevelMapper.selectList(lambdaQuery(CrowdLevel.class)
+                .eq(CrowdLevel::getScenicAreaId, scenicId)
+                .orderByDesc(CrowdLevel::getRecordedAt)
+                .orderByDesc(CrowdLevel::getId));
+        if (records.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, CrowdLevel> latestByNode = new LinkedHashMap<>();
+        for (CrowdLevel record : records) {
+            if (record.getNodeId() == null || latestByNode.containsKey(record.getNodeId())) {
+                continue;
+            }
+            latestByNode.put(record.getNodeId(), record);
+        }
+        return new ArrayList<>(latestByNode.values());
     }
 
     /**

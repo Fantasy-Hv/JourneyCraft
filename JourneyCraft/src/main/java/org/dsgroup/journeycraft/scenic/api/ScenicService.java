@@ -9,6 +9,7 @@ import org.dsgroup.journeycraft.scenic.vo.rspvo.BuildingRspVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.FacilityRspVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.ScenicItemRspVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.ScenicListRspVO;
+import org.dsgroup.journeycraft.scenic.entity.CrowdLevel;
 
 import java.util.List;
 
@@ -46,6 +47,11 @@ public interface ScenicService {
      * 上报节点拥挤度。
      */
     void reportCrowd(Long scenicId, ReportCrowdReqVO reqVO);
+
+    /**
+     * 获取景区各节点最新拥挤度记录，供 navigation 模块聚合查询。
+     */
+    List<CrowdLevel> getCrowdLevelsByScenicArea(Long scenicId);
 
     /**
      * 获取校园列表。
