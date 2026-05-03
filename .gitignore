@@ -27,3 +27,6 @@ Thumbs.db
 # Project docs and agent config
 .doc/
 .opencode/
+.sisyphus/
+
+.Claude/

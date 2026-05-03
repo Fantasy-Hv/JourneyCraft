@@ -4,8 +4,8 @@
 -- 生成方式: 读取 MySQL journeycraft 数据库实际结构
 -- 负责人: 刘方正
 -- 包含 8 张表: road_node, road_edge, route,
---   photo_spot, indoor_floor,
---   route_cache, osm_import_log, history
+--   crowd_level, photo_spot, indoor_floor,
+--   route_cache, osm_import_log
 -- =============================================
 
 -- ----------------------------------------------------
@@ -258,32 +258,4 @@ CREATE TABLE `t_navigation_osm_import_log` (
   KEY `idx_region` (`region`),
   KEY `idx_started` (`started_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='OSM数据导入日志表'
-;
--- ----------------------------------------------------
--- Table: t_navigation_history
--- ----------------------------------------------------
-DROP TABLE IF EXISTS `t_navigation_history`;
-CREATE TABLE `t_navigation_history` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '历史ID',
-  `user_id` bigint NOT NULL COMMENT '用户ID',
-  `scenic_area_id` bigint NOT NULL COMMENT '景区ID',
-  `start_node_id` bigint NOT NULL COMMENT '起点节点ID',
-  `end_node_id` bigint NOT NULL COMMENT '终点节点ID',
-  `path_nodes` json DEFAULT NULL COMMENT '路径节点序列',
-  `transport_mode` tinyint DEFAULT NULL COMMENT '交通方式: 1=步行, 2=自行车, 3=电瓶车',
-  `actual_time` int DEFAULT NULL COMMENT '实际用时(秒)',
-  `is_completed` tinyint DEFAULT '1' COMMENT '是否完成: 0=未完成, 1=已完成',
-  `navigated_at` datetime NOT NULL COMMENT '导航时间',
-  `is_deleted` tinyint NOT NULL DEFAULT '0' COMMENT '是否删除',
-  `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_user` (`user_id`),
-  KEY `idx_scenic_area` (`scenic_area_id`),
-  KEY `idx_navigated` (`navigated_at`),
-  KEY `start_node_id` (`start_node_id`),
-  KEY `end_node_id` (`end_node_id`),
-  CONSTRAINT `t_navigation_history_ibfk_1` FOREIGN KEY (`scenic_area_id`) REFERENCES `t_temp_scenic_area` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `t_navigation_history_ibfk_2` FOREIGN KEY (`start_node_id`) REFERENCES `t_navigation_road_node` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `t_navigation_history_ibfk_3` FOREIGN KEY (`end_node_id`) REFERENCES `t_navigation_road_node` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='导航历史表'
 ;

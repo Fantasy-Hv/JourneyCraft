@@ -102,7 +102,6 @@
 | `RoadEdgeService` | CRUD + 按节点/交通方式查询 | 路径段管理 |
 | `PhotoSpotService` | CRUD + 按景区/评分查询 | 拍照点数据管理 |
 | `NavigationRouteService` | save/list/getById | 路线持久化 |
-| `NavigationHistoryService` | record/list/getByUser | 导航历史记录 |
 
 > **跨模块调用约定**: 其他模块通过 `api` 包下的 `NavigationService` 接口使用 navigation 功能（遵循 `模块调用约定.md`）。
 > - **接口类**: `api/NavigationService.java`
@@ -124,7 +123,7 @@
 
 > ⚠️ **注意**: 这 3 张桩表仅在 Navigation 模块独立开发期间使用。Scenic 模块完成后，Navigation 应通过 Scenic 模块的 `api` 接口获取数据，不再使用桩表。
 
-### 4.2 Navigation 核心表（8 张）
+### 4.2 Navigation 核心表（7 张）
 
 | 表名 | 说明 | 关键字段 |
 |------|------|---------|
@@ -135,7 +134,8 @@
 | `t_navigation_osm_import_log` | OSM 导入日志表 | file_name, import_type, total_records, success_count, status, processing_time_ms |
 | `t_navigation_indoor_floor` | 室内楼层表 | building_id, floor_number, floor_name, indoor_data(JSON), elevator/stair_node_id |
 | `t_navigation_route` | 导航路线表 | user_id, scenic_area_id, start_node_id, end_node_ids(JSON), path_nodes(JSON), total_distance, strategy |
-| `t_navigation_history` | 导航历史表 | user_id, scenic_area_id, start_node_id, end_node_id, path_nodes(JSON), navigated_at |
+
+> **导航历史**: Navigation 模块不再保留 `t_navigation_history` 表。该表由 History 模块（黄严）统一管理，Navigation 通过 `history.api.NavigationHistoryService` 调用。
 
 > **拥挤度数据**: 不再由 Navigation 模块独立管理。Navigation 通过 `ScenicService.getCrowdLevelsByScenicArea()` API 从 Scenic 模块的 `t_crowd_level` 表读取数据，在 Navigation 侧聚合计算 color 和 overallLevel。Navigation 的 `t_navigation_crowd_level` 表和 CrowdLevelController 等代码已删除。
 
