@@ -7,7 +7,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/journeycraft?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
     username: root
-    password: root123
+    password: ${MYSQL_PASSWORD:123456}
 
   # MongoDB 配置
   # H2 控制台（开发测试用）
@@ -15,15 +15,7 @@ spring:
     console:
       enabled: true
   mongodb:
-    uri: mongodb://localhost:27017/JourneyCraft
-
-  # Spring Security 配置（开发环境）
-  security:
-    user:
-      name: test
-      password: test
-    filter:
-      order: -100
+    uri: mongodb://localhost:27017/journeycraft_diary
 
 # MyBatis-Plus 配置
 mybatis-plus:
@@ -54,7 +46,7 @@ knife4j:
 minio:
   endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
   access-key: ${MINIO_ACCESS_KEY:minioadmin}
-  secret-key: ${MINIO_SECRET_KEY:minioadmin123}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
   bucket-name: journeycraft
 
 # 服务端口

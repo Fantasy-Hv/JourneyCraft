@@ -34,7 +34,20 @@ public class GlobalExceptionHandler {
     /**
      * 处理参数错误异常
      */
-    @ExceptionHandler(value = {IllegalArgumentException.class, MethodArgumentNotValidException.class})
+    @ExceptionHandler(value = MethodArgumentNotValidException.class)
+    public Response<Void> handleValidationException(MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getAllErrors().stream()
+                .map(error -> error.getDefaultMessage())
+                .findFirst()
+                .orElse("参数验证失败");
+        log.warn("参数错误：{}", message);
+        return Response.error(ResponseCodeEnum.INVALID_PARAM.getCode(), message);
+    }
+
+    /**
+     * 处理非法参数异常
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
     public Response<Void> handleIllegalArgumentException(IllegalArgumentException e) {
         log.warn("参数错误：{}", e.getMessage());
         return Response.error(ResponseCodeEnum.INVALID_PARAM.getCode(), e.getMessage());
