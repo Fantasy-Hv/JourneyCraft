@@ -3,6 +3,8 @@ package org.dsgroup.journeycraft.navigation.controller;
 import org.dsgroup.journeycraft.common.result.Response;
 import org.dsgroup.journeycraft.navigation.service.PathPlanningService;
 import org.dsgroup.journeycraft.navigation.service.NavigationRouteService;
+import org.dsgroup.journeycraft.navigation.service.impl.NavigationApiServiceImpl;
+import org.dsgroup.journeycraft.navigation.vo.rspvo.CongestionRspVO;
 import org.dsgroup.journeycraft.scenic.api.ScenicService;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.FacilityListReqVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.FacilityRspVO;
@@ -42,6 +44,9 @@ class NavigationControllerTest {
     @Mock
     private ScenicService scenicService;
 
+    @Mock
+    private NavigationApiServiceImpl navigationApiServiceImpl;
+
     private NavigationController navigationController;
 
     @BeforeEach
@@ -60,6 +65,10 @@ class NavigationControllerTest {
             java.lang.reflect.Field scenicField = NavigationController.class.getDeclaredField("scenicService");
             scenicField.setAccessible(true);
             scenicField.set(navigationController, scenicService);
+
+            java.lang.reflect.Field navApiField = NavigationController.class.getDeclaredField("navigationApiServiceImpl");
+            navApiField.setAccessible(true);
+            navApiField.set(navigationController, navigationApiServiceImpl);
         } catch (Exception e) {
             fail("Failed to inject mocks: " + e.getMessage());
         }
@@ -247,9 +256,14 @@ class NavigationControllerTest {
      */
     @Test
     void testGetCongestion() {
-        // TODO: 等 ScenicService.getCrowdLevelsByScenicArea() 就绪后恢复 mock
-        Response<?> response = navigationController.getCongestion(1L);
+        CongestionRspVO mockResult = new CongestionRspVO();
+        mockResult.setScenicAreaId(1L);
+        mockResult.setOverallLevel(0);
+        mockResult.setNodes(java.util.Collections.emptyList());
+        when(navigationApiServiceImpl.fetchCrowdLevelData(eq(1L)))
+            .thenReturn(mockResult);
 
+        Response<?> response = navigationController.getCongestion(1L);
         assertNotNull(response);
         assertTrue(response.isSuccess());
         assertEquals(200, response.getCode());

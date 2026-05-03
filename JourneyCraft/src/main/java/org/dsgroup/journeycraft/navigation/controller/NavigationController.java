@@ -9,11 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.dsgroup.journeycraft.navigation.entity.NavigationRoute;
 import org.dsgroup.journeycraft.navigation.service.NavigationRouteService;
 import org.dsgroup.journeycraft.navigation.service.PathPlanningService;
+import org.dsgroup.journeycraft.navigation.service.impl.NavigationApiServiceImpl;
 import org.dsgroup.journeycraft.navigation.vo.rspvo.CongestionRspVO;
-import org.dsgroup.journeycraft.navigation.vo.rspvo.NodeCongestionVO;
 import org.dsgroup.journeycraft.navigation.vo.rspvo.NearbyFacilityRspVO;
 import org.dsgroup.journeycraft.scenic.api.ScenicService;
-import org.dsgroup.journeycraft.scenic.entity.CrowdLevel;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.FacilityListReqVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.FacilityRspVO;
 import org.dsgroup.journeycraft.common.result.Response;
@@ -21,7 +20,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Comparator;
 
 /**
  * 导航核心控制器
@@ -45,6 +43,9 @@ public class NavigationController {
     
     @Autowired
     private ScenicService scenicService;
+
+    @Autowired
+    private NavigationApiServiceImpl navigationApiServiceImpl;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -230,50 +231,13 @@ public class NavigationController {
     }
 
     @GetMapping("/congestion/{scenicId}")
-    @Operation(summary = "获取实时拥挤度", description = "获取指定景区的实时拥挤度（调用 Scenic 模块）")
+    @Operation(summary = "获取实时拥挤度", description = "获取指定景区的实时拥挤度（调用 NavigationApiServiceImpl）")
     public Response<CongestionRspVO> getCongestion(
             @Parameter(description = "景区ID", required = true) @PathVariable Long scenicId) {
         try {
             log.info("获取景区 {} 的实时拥挤度", scenicId);
-            
-            // 调用 Scenic 模块获取拥挤度原始数据
-            List<CrowdLevel> crowdLevels = scenicService.getCrowdLevelsByScenicArea(scenicId);
-            
-            CongestionRspVO result = new CongestionRspVO();
-            result.setScenicAreaId(scenicId);
-            
-            if (crowdLevels == null || crowdLevels.isEmpty()) {
-                result.setOverallLevel(0);
-                result.setUpdateTime(null);
-                result.setNodes(java.util.Collections.emptyList());
-                return Response.ok(result);
-            }
-            
-            // 转换为 NodeCongestionVO，color 由 Navigation 根据 level 推导
-            List<NodeCongestionVO> nodes = new java.util.ArrayList<>();
-            int maxLevel = 0;
-            for (CrowdLevel cl : crowdLevels) {
-                NodeCongestionVO nc = new NodeCongestionVO();
-                nc.setNodeId(cl.getNodeId());
-                nc.setLevel(cl.getLevel());
-                nc.setCrowdCount(cl.getCrowdCount());
-                nc.setColor(NodeCongestionVO.colorOf(cl.getLevel()));
-                nodes.add(nc);
-                if (cl.getLevel() != null && cl.getLevel() > maxLevel) {
-                    maxLevel = cl.getLevel();
-                }
-            }
-            result.setNodes(nodes);
-            result.setOverallLevel(maxLevel);
-            result.setUpdateTime(crowdLevels.stream()
-                    .map(CrowdLevel::getRecordedAt)
-                    .filter(java.util.Objects::nonNull)
-                    .max(Comparator.naturalOrder())
-                    .map(java.time.LocalDateTime::toString)
-                    .orElse(null));
-            
+            CongestionRspVO result = navigationApiServiceImpl.fetchCrowdLevelData(scenicId);
             return Response.ok(result);
-            
         } catch (Exception e) {
             log.error("获取拥挤度失败", e);
             return Response.error("获取拥挤度失败: " + e.getMessage());

@@ -2,20 +2,30 @@ package org.dsgroup.journeycraft.navigation.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
 import org.dsgroup.journeycraft.navigation.api.NavigationService;
+import org.dsgroup.journeycraft.navigation.dto.MultiRouteResultDTO;
+import org.dsgroup.journeycraft.navigation.dto.PathNodeDTO;
+import org.dsgroup.journeycraft.navigation.dto.RouteResultDTO;
 import org.dsgroup.journeycraft.navigation.entity.RoadNode;
 import org.dsgroup.journeycraft.navigation.service.PathPlanningService;
 import org.dsgroup.journeycraft.navigation.service.RoadNodeService;
+import org.dsgroup.journeycraft.navigation.vo.rspvo.CongestionRspVO;
 import org.dsgroup.journeycraft.navigation.vo.rspvo.NearbyFacilityRspVO;
+import org.dsgroup.journeycraft.navigation.vo.rspvo.NodeCongestionVO;
 import org.dsgroup.journeycraft.scenic.api.ScenicService;
+import org.dsgroup.journeycraft.scenic.entity.CrowdLevel;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.FacilityListReqVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.FacilityRspVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * 导航模块对外服务接口实现。
@@ -40,31 +50,34 @@ public class NavigationApiServiceImpl implements NavigationService {
     private RoadNodeService roadNodeService;
 
     @Override
-    public PathPlanningService.PathPlanningResult planSingleRoute(
+    public RouteResultDTO planSingleRoute(
             Long scenicAreaId, Long startNodeId, Long endNodeId,
             String strategy, String transportMode) {
         log.info("[API] 单目标路径规划(Dijkstra): 景区={}, {} -> {}", scenicAreaId, startNodeId, endNodeId);
         Integer mode = parseTransportMode(transportMode);
-        return pathPlanningService.calculateShortestPath(startNodeId, endNodeId, mode, strategy);
+        return convertToRouteResultDTO(
+                pathPlanningService.calculateShortestPath(startNodeId, endNodeId, mode, strategy));
     }
 
     @Override
-    public PathPlanningService.PathPlanningResult planSingleRouteAStar(
+    public RouteResultDTO planSingleRouteAStar(
             Long scenicAreaId, Long startNodeId, Long endNodeId,
             String strategy, String transportMode) {
         log.info("[API] 单目标路径规划(A*): 景区={}, {} -> {}", scenicAreaId, startNodeId, endNodeId);
         Integer mode = parseTransportMode(transportMode);
-        return pathPlanningService.calculateAStarPath(startNodeId, endNodeId, mode, strategy);
+        return convertToRouteResultDTO(
+                pathPlanningService.calculateAStarPath(startNodeId, endNodeId, mode, strategy));
     }
 
     @Override
-    public PathPlanningService.MultiTargetRouteResult planMultiRoute(
+    public MultiRouteResultDTO planMultiRoute(
             Long scenicAreaId, Long startNodeId, List<Long> targetNodeIds,
             boolean needReturn, String transportMode) {
         log.info("[API] 多目标路线规划: 景区={}, 起点={}, 目标数={}, 返回起点={}",
                 scenicAreaId, startNodeId, targetNodeIds != null ? targetNodeIds.size() : 0, needReturn);
         Integer mode = parseTransportMode(transportMode);
-        return pathPlanningService.calculateMultiTargetRoute(startNodeId, targetNodeIds, mode, needReturn);
+        return convertToMultiRouteResultDTO(
+                pathPlanningService.calculateMultiTargetRoute(startNodeId, targetNodeIds, mode, needReturn));
     }
 
     @Override
@@ -194,6 +207,102 @@ public class NavigationApiServiceImpl implements NavigationService {
         log.info("[API] 路网距离计算完成: {} -> {} = {}m",
                 userNearestNodeId, targetNodeId, result.getTotalDistance());
         return result.getTotalDistance();
+    }
+
+    /**
+     * 获取景区拥挤度数据，供 NavigationController 调用。
+     * <p>
+     * 调用 Scenic 模块获取原始 CrowdLevel 数据，自行计算 color 和 overallLevel。
+     *
+     * @param scenicId 景区ID
+     * @return 拥挤度响应 VO（含各节点详情和整体等级）
+     */
+    public CongestionRspVO fetchCrowdLevelData(Long scenicId) {
+        log.info("[API] 获取景区拥挤度: scenicId={}", scenicId);
+
+        List<CrowdLevel> crowdLevels = scenicService.getCrowdLevelsByScenicArea(scenicId);
+
+        CongestionRspVO result = new CongestionRspVO();
+        result.setScenicAreaId(scenicId);
+
+        if (crowdLevels == null || crowdLevels.isEmpty()) {
+            result.setOverallLevel(0);
+            result.setUpdateTime(null);
+            result.setNodes(Collections.emptyList());
+            return result;
+        }
+
+        int maxLevel = 0;
+        List<NodeCongestionVO> nodes = new ArrayList<>();
+        for (CrowdLevel cl : crowdLevels) {
+            NodeCongestionVO nc = new NodeCongestionVO();
+            nc.setNodeId(cl.getNodeId());
+            nc.setLevel(cl.getLevel());
+            nc.setCrowdCount(cl.getCrowdCount());
+            nc.setColor(NodeCongestionVO.colorOf(cl.getLevel()));
+            nodes.add(nc);
+            if (cl.getLevel() != null && cl.getLevel() > maxLevel) {
+                maxLevel = cl.getLevel();
+            }
+        }
+        result.setNodes(nodes);
+        result.setOverallLevel(maxLevel);
+        result.setUpdateTime(crowdLevels.stream()
+                .map(CrowdLevel::getRecordedAt)
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .map(LocalDateTime::toString)
+                .orElse(null));
+
+        return result;
+    }
+
+    // ============ 内部类型映射工具 ============
+
+    private RouteResultDTO convertToRouteResultDTO(
+            PathPlanningService.PathPlanningResult result) {
+        if (result == null) return null;
+        RouteResultDTO dto = new RouteResultDTO();
+        dto.setRouteId(result.getRouteId());
+        dto.setTotalDistance(result.getTotalDistance());
+        dto.setEstimatedTime(result.getEstimatedTime());
+        dto.setTransportMode(result.getTransportMode());
+        dto.setStrategy(result.getStrategy());
+        if (result.getNodes() != null) {
+            dto.setNodes(result.getNodes().stream()
+                    .map(this::convertToPathNodeDTO)
+                    .collect(Collectors.toList()));
+        }
+        return dto;
+    }
+
+    private PathNodeDTO convertToPathNodeDTO(PathPlanningService.PathNode node) {
+        if (node == null) return null;
+        PathNodeDTO dto = new PathNodeDTO();
+        dto.setNodeId(node.getNodeId());
+        dto.setName(node.getName());
+        dto.setSequence(node.getSequence());
+        dto.setLatitude(node.getLatitude());
+        dto.setLongitude(node.getLongitude());
+        dto.setAction(node.getAction());
+        dto.setArrivalTime(node.getArrivalTime());
+        return dto;
+    }
+
+    private MultiRouteResultDTO convertToMultiRouteResultDTO(
+            PathPlanningService.MultiTargetRouteResult result) {
+        if (result == null) return null;
+        MultiRouteResultDTO dto = new MultiRouteResultDTO();
+        dto.setTotalDistance(result.getTotalDistance());
+        dto.setTotalTime(result.getTotalTime());
+        dto.setVisitOrder(result.getVisitOrder());
+        dto.setReturnedToStart(result.isReturnedToStart());
+        if (result.getSegments() != null) {
+            dto.setSegments(result.getSegments().stream()
+                    .map(this::convertToRouteResultDTO)
+                    .collect(Collectors.toList()));
+        }
+        return dto;
     }
 
     private Integer parseTransportMode(String transportMode) {

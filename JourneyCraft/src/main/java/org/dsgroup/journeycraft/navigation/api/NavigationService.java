@@ -1,6 +1,7 @@
 package org.dsgroup.journeycraft.navigation.api;
 
-import org.dsgroup.journeycraft.navigation.service.PathPlanningService;
+import org.dsgroup.journeycraft.navigation.dto.MultiRouteResultDTO;
+import org.dsgroup.journeycraft.navigation.dto.RouteResultDTO;
 import org.dsgroup.journeycraft.navigation.vo.rspvo.NearbyFacilityRspVO;
 
 import java.math.BigDecimal;
@@ -17,7 +18,7 @@ import java.util.List;
  * @Resource
  * private NavigationService navigationService;
  *
- * PathPlanningResult route = navigationService.planSingleRoute(
+ * RouteResultDTO route = navigationService.planSingleRoute(
  *     scenicId, startNodeId, endNodeId, "shortest_time", "walk");
  * }</pre>
  *
@@ -36,7 +37,7 @@ public interface NavigationService {
      * @param transportMode 交通方式 (walk / bike / shuttle)
      * @return 路径规划结果，包含路段节点序列、总距离、预计时间
      */
-    PathPlanningService.PathPlanningResult planSingleRoute(
+    RouteResultDTO planSingleRoute(
             Long scenicAreaId, Long startNodeId, Long endNodeId,
             String strategy, String transportMode);
 
@@ -52,7 +53,7 @@ public interface NavigationService {
      * @param transportMode 交通方式
      * @return 路径规划结果
      */
-    PathPlanningService.PathPlanningResult planSingleRouteAStar(
+    RouteResultDTO planSingleRouteAStar(
             Long scenicAreaId, Long startNodeId, Long endNodeId,
             String strategy, String transportMode);
 
@@ -68,7 +69,7 @@ public interface NavigationService {
      * @param transportMode 交通方式
      * @return 多目标路线规划结果，包含各段详情、访问顺序、总距离、总时间
      */
-    PathPlanningService.MultiTargetRouteResult planMultiRoute(
+    MultiRouteResultDTO planMultiRoute(
             Long scenicAreaId, Long startNodeId, List<Long> targetNodeIds,
             boolean needReturn, String transportMode);
 

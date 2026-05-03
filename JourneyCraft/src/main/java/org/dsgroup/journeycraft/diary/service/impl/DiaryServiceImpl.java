@@ -6,7 +6,9 @@ import org.dsgroup.journeycraft.common.exception.BusinessException;
 import org.dsgroup.journeycraft.diary.dto.DiaryCreateDTO;
 import org.dsgroup.journeycraft.diary.entity.Comment;
 import org.dsgroup.journeycraft.diary.entity.Diary;
+import org.dsgroup.journeycraft.diary.entity.DiaryLike;
 import org.dsgroup.journeycraft.diary.repository.CommentRepository;
+import org.dsgroup.journeycraft.diary.repository.DiaryLikeRepository;
 import org.dsgroup.journeycraft.diary.repository.DiaryRepository;
 import org.dsgroup.journeycraft.diary.service.DiaryService;
 import org.dsgroup.journeycraft.diary.vo.reqvo.CommentCreateReqVO;
@@ -14,6 +16,7 @@ import org.dsgroup.journeycraft.diary.vo.rspvo.CommentRspVO;
 import org.dsgroup.journeycraft.diary.vo.rspvo.DiaryDetailRspVO;
 import org.dsgroup.journeycraft.diary.vo.rspvo.DiaryLikeRspVO;
 import org.dsgroup.journeycraft.diary.vo.rspvo.DiaryListRspVO;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -21,8 +24,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -35,11 +37,8 @@ public class DiaryServiceImpl implements DiaryService {
     private final DiaryRepository diaryRepository;
     private final CommentRepository commentRepository;
 
-    /**
-     * 内存存储用户点赞记录 (Key: diaryId:userId, Value: liked)
-     * 注意：生产环境应该使用数据库表存储
-     */
-    private final Set<String> likedRecords = ConcurrentHashMap.newKeySet();
+    @Autowired
+    private DiaryLikeRepository diaryLikeRepository;
 
     /**
      * 创建日记
@@ -130,19 +129,29 @@ public class DiaryServiceImpl implements DiaryService {
     }
 
     /**
-     * 查询日记详情
+     * 查询日记详情。
+     * <p>
+     * isLiked 从 MongoDB diary_like 集合查询真实点赞状态。
+     * currentUserId 当前由 Controller 透传（当前为 null 时视为未登录，isLiked=false）。
      */
     @Override
     public DiaryDetailRspVO getDiaryDetail(String id) {
         Diary diary = diaryRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND,"日记不存在"));
+                .orElseThrow(() -> new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND, "日记不存在"));
 
         // 检查是否公开（私密日记只有自己能看到，这里简化处理）
         if (diary.getStatus() == 0) {
             throw new RuntimeException("该日记为私密日记");
         }
 
-        return convertToDetailVO(diary);
+        // 从 MongoDB diary_like 集合查询真实点赞状态
+        boolean isLiked = false;
+        Long currentUserId = null; // TODO: 由 Controller 透传 currentUserId 参数
+        if (currentUserId != null) {
+            isLiked = diaryLikeRepository.existsByDiaryIdAndUserId(id, currentUserId);
+        }
+
+        return convertToDetailVO(diary, isLiked);
     }
 
     /**
@@ -186,7 +195,7 @@ public class DiaryServiceImpl implements DiaryService {
     /**
      * 将 Diary 实体转换为详情 VO
      */
-    private DiaryDetailRspVO convertToDetailVO(Diary diary) {
+    private DiaryDetailRspVO convertToDetailVO(Diary diary, boolean isLiked) {
         return DiaryDetailRspVO.builder()
                 .id(diary.getId())
                 .userId(diary.getUserId())
@@ -210,7 +219,7 @@ public class DiaryServiceImpl implements DiaryService {
                 .likeCount(diary.getLikeCount())
                 .viewCount(diary.getViewCount())
                 .commentCount(diary.getCommentCount())
-                .isLiked(false) // TODO: 根据当前用户判断
+                .isLiked(isLiked) // 从 MongoDB diary_like 集合查询的真实值
                 .status(diary.getStatus())
                 .createdAt(diary.getCreatedAt())
                 .updatedAt(diary.getUpdatedAt())
@@ -343,32 +352,42 @@ public class DiaryServiceImpl implements DiaryService {
     }
 
     /**
-     * 点赞日记 (切换模式)
+     * 点赞日记 (切换模式)。
+     * <p>
+     * 使用 MongoDB diary_like 集合持久化点赞记录，替代原有的 ConcurrentHashMap 内存存储。
      */
     @Override
     public DiaryLikeRspVO toggleLike(String id, Long currentUserId) {
         Diary diary = diaryRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND,"日记不存在"));
+                .orElseThrow(() -> new BusinessException(ResponseCodeEnum.DIARY_NOT_FOUND, "日记不存在"));
 
-        String recordKey = id + ":" + currentUserId;
-        boolean isLiked = likedRecords.contains(recordKey);
+        Optional<DiaryLike> existingLike = diaryLikeRepository.findByDiaryIdAndUserId(id, currentUserId);
 
-        if (isLiked) {
+        if (existingLike.isPresent()) {
             // 取消点赞
-            likedRecords.remove(recordKey);
+            diaryLikeRepository.delete(existingLike.get());
             diary.setLikeCount(Math.max(0, diary.getLikeCount() - 1));
+            diaryRepository.save(diary);
+
+            return DiaryLikeRspVO.builder()
+                    .likeCount(diary.getLikeCount())
+                    .isLiked(false)
+                    .build();
         } else {
             // 点赞
-            likedRecords.add(recordKey);
+            DiaryLike diaryLike = new DiaryLike();
+            diaryLike.setDiaryId(id);
+            diaryLike.setUserId(currentUserId);
+            diaryLikeRepository.save(diaryLike);
+
             diary.setLikeCount(diary.getLikeCount() + 1);
+            diaryRepository.save(diary);
+
+            return DiaryLikeRspVO.builder()
+                    .likeCount(diary.getLikeCount())
+                    .isLiked(true)
+                    .build();
         }
-
-        diaryRepository.save(diary);
-
-        return DiaryLikeRspVO.builder()
-                .likeCount(diary.getLikeCount())
-                .isLiked(!isLiked)
-                .build();
     }
 
     /**

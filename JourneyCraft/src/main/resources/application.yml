@@ -7,7 +7,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/journeycraft?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
     username: root
-    password: ${MYSQL_PASSWORD:123456}
+    password: ${MYSQL_PASSWORD:root123}
 
   # MongoDB 配置
   # H2 控制台（开发测试用）
