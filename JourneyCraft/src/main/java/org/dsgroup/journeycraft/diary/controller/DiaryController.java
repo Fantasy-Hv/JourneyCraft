@@ -33,16 +33,18 @@ public class DiaryController {
     /**
      * 创建日记
      * @param reqVO 创建日记请求 VO
+     * @param currentUserId 当前登录用户 ID
      * @return 创建的日记 ID
      */
     @PostMapping
     @Operation(summary = "创建日记", description = "创建一篇新的日记")
-    public Response<DiaryCreateRspVO> createDiary(@RequestBody @Valid DiaryCreateReqVO reqVO) {
+    public Response<DiaryCreateRspVO> createDiary(@RequestBody @Valid DiaryCreateReqVO reqVO,
+                                                  @RequestAttribute("currentUserId") Long currentUserId) {
         // VO 转 DTO
         DiaryCreateDTO dto = convertToDTO(reqVO);
 
         // 调用 Service 层
-        String diaryId = diaryService.createDiary(dto);
+        String diaryId = diaryService.createDiary(dto, currentUserId);
 
         // 返回响应
         DiaryCreateRspVO rspVO = DiaryCreateRspVO.builder()
@@ -91,37 +93,43 @@ public class DiaryController {
      * 更新日记
      * @param id 日记 ID
      * @param reqVO 更新请求 VO
+     * @param currentUserId 当前登录用户 ID
      * @return 操作结果
      */
     @PutMapping("/{id}")
     @Operation(summary = "更新日记", description = "更新日记信息，仅作者可修改")
-    public Response updateDiary(@PathVariable String id, @RequestBody @Valid DiaryUpdateReqVO reqVO) {
+    public Response updateDiary(@PathVariable String id, @RequestBody @Valid DiaryUpdateReqVO reqVO,
+                                @RequestAttribute("currentUserId") Long currentUserId) {
         DiaryCreateDTO dto = convertToUpdateDTO(reqVO);
-        diaryService.updateDiary(id, dto);
+        diaryService.updateDiary(id, dto, currentUserId);
         return Response.ok();
     }
 
     /**
      * 删除日记
      * @param id 日记 ID
+     * @param currentUserId 当前登录用户 ID
      * @return 操作结果
      */
     @DeleteMapping("/{id}")
     @Operation(summary = "删除日记", description = "删除日记，仅作者可删除")
-    public Response deleteDiary(@PathVariable String id) {
-        diaryService.deleteDiary(id);
+    public Response deleteDiary(@PathVariable String id,
+                                @RequestAttribute("currentUserId") Long currentUserId) {
+        diaryService.deleteDiary(id, currentUserId);
         return Response.ok();
     }
 
     /**
      * 点赞日记
      * @param id 日记 ID
+     * @param currentUserId 当前登录用户 ID
      * @return 点赞结果
      */
     @PostMapping("/{id}/like")
     @Operation(summary = "点赞日记", description = "点赞/取消点赞日记")
-    public Response<DiaryLikeRspVO> likeDiary(@PathVariable String id) {
-        DiaryLikeRspVO result = diaryService.toggleLike(id);
+    public Response<DiaryLikeRspVO> likeDiary(@PathVariable String id,
+                                              @RequestAttribute("currentUserId") Long currentUserId) {
+        DiaryLikeRspVO result = diaryService.toggleLike(id, currentUserId);
         return Response.ok(result);
     }
 
@@ -129,12 +137,14 @@ public class DiaryController {
      * 添加评论
      * @param id 日记 ID
      * @param reqVO 评论请求 VO
+     * @param currentUserId 当前登录用户 ID
      * @return 评论 ID
      */
     @PostMapping("/{id}/comment")
     @Operation(summary = "添加评论", description = "为日记添加评论或回复评论")
-    public Response<Map<String, String>> addComment(@PathVariable String id, @RequestBody @Valid CommentCreateReqVO reqVO) {
-        String commentId = diaryService.addComment(id, reqVO);
+    public Response<Map<String, String>> addComment(@PathVariable String id, @RequestBody @Valid CommentCreateReqVO reqVO,
+                                                    @RequestAttribute("currentUserId") Long currentUserId) {
+        String commentId = diaryService.addComment(id, reqVO, currentUserId);
         Map<String, String> result = new HashMap<>();
         result.put("commentId", commentId);
         return Response.ok(result);
@@ -157,6 +167,19 @@ public class DiaryController {
         result.put("list", list);
         result.put("total", list.size());
         return Response.ok(result);
+    }
+
+    /**
+     * 删除评论
+     * @param id 评论 ID
+     * @return 操作结果
+     */
+    @DeleteMapping("/comment/{id}")
+    @Operation(summary = "删除评论", description = "删除评论，仅评论发布者或日记作者可删除")
+    public Response deleteComment(@PathVariable String id,
+                                  @RequestAttribute("currentUserId") Long currentUserId) {
+        diaryService.deleteComment(id, currentUserId);
+        return Response.ok();
     }
 
     /**

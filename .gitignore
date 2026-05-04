@@ -1,0 +1,32 @@
+# IDEA
+.idea/
+
+# Local Codex config
+.codex/
+
+# Maven
+target/
+
+# Gradle
+.gradle/
+build/
+
+# Log files
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+
+# Project docs and agent config
+.doc/
+.opencode/
+.sisyphus/
+
+.claude/

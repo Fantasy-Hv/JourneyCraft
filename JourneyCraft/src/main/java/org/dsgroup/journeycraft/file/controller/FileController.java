@@ -20,7 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
  * 文件模块 HTTP 接口。
  */
 @RestController
-@RequestMapping("/api/v1/file")
+@RequestMapping("/api/file")
 @RequiredArgsConstructor
 public class FileController {
 

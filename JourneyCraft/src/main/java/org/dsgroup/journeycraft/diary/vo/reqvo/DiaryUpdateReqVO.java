@@ -5,6 +5,11 @@ import lombok.Data;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import java.util.List;
 
 /**
@@ -38,12 +43,15 @@ public class DiaryUpdateReqVO {
     private List<String> videos;
 
     @Schema(description = "游览路径")
+    @Valid
     private List<PathNodeReqVO> path;
 
     @Schema(description = "标签", example = "[\"自然风光\", \"登山\"]")
     private List<String> tags;
 
     @Schema(description = "评分 0-5", example = "4.9")
+    @DecimalMin(value = "0.0", message = "评分最小为 0")
+    @DecimalMax(value = "5.0", message = "评分最大为 5")
     private Double rating;
 
     @Schema(description = "心情", example = "兴奋")
@@ -56,6 +64,8 @@ public class DiaryUpdateReqVO {
     private List<String> companions;
 
     @Schema(description = "可见性：0-私密 1-公开", example = "1")
+    @Min(value = 0, message = "status 最小为 0")
+    @Max(value = 1, message = "status 最大为 1")
     private Integer status;
 
     /**
@@ -75,12 +85,17 @@ public class DiaryUpdateReqVO {
         private String timestamp;
 
         @Schema(description = "纬度", example = "39.915")
+        @DecimalMin(value = "-90.0", message = "纬度最小为 -90")
+        @DecimalMax(value = "90.0", message = "纬度最大为 90")
         private Double lat;
 
         @Schema(description = "经度", example = "116.397")
+        @DecimalMin(value = "-180.0", message = "经度最小为 -180")
+        @DecimalMax(value = "180.0", message = "经度最大为 180")
         private Double lng;
 
         @Schema(description = "照片数量", example = "20")
+        @Min(value = 0, message = "照片数量不能为负")
         private Integer photoCount;
 
         @Schema(description = "节点图片列表")

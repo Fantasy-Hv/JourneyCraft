@@ -18,6 +18,8 @@ public class ScenicArea {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    private Long nodeId;
+
     private String name;
 
     private Integer type;
@@ -45,6 +47,8 @@ public class ScenicArea {
     private String openingHours;
 
     private String images;
+
+    private String tags;
 
     private String contactPhone;
 

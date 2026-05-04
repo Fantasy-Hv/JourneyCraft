@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理器
@@ -33,7 +34,20 @@ public class GlobalExceptionHandler {
     /**
      * 处理参数错误异常
      */
-    @ExceptionHandler(value = {IllegalArgumentException.class, MethodArgumentNotValidException.class})
+    @ExceptionHandler(value = MethodArgumentNotValidException.class)
+    public Response<Void> handleValidationException(MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getAllErrors().stream()
+                .map(error -> error.getDefaultMessage())
+                .findFirst()
+                .orElse("参数验证失败");
+        log.warn("参数错误：{}", message);
+        return Response.error(ResponseCodeEnum.INVALID_PARAM.getCode(), message);
+    }
+
+    /**
+     * 处理非法参数异常
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
     public Response<Void> handleIllegalArgumentException(IllegalArgumentException e) {
         log.warn("参数错误：{}", e.getMessage());
         return Response.error(ResponseCodeEnum.INVALID_PARAM.getCode(), e.getMessage());
@@ -66,6 +80,15 @@ public class GlobalExceptionHandler {
     public Response<Void> handleNoHandlerFoundException(NoHandlerFoundException e) {
         log.warn("资源不存在：{}", e.getRequestURL());
         return Response.error(ResponseCodeEnum.NOT_FOUND);
+    }
+
+    /**
+     * 处理静态资源未找到异常（如favicon.ico）
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public Response<Void> handleNoResourceFoundException(NoResourceFoundException e) {
+        log.debug("静态资源不存在：{}", e.getResourcePath());
+        return Response.error(404, "静态资源不存在");
     }
 
     /**

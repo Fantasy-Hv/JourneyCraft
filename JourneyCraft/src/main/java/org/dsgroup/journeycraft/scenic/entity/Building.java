@@ -20,6 +20,8 @@ public class Building {
 
     private Long scenicAreaId;
 
+    private Long nodeId;
+
     private String name;
 
     private Integer type;

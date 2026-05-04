@@ -25,6 +25,10 @@ public class CrowdLevel {
 
     private Integer crowdCount;
 
+    private Integer capacity;
+
+    private LocalDateTime predictedAt;
+
     private LocalDateTime recordedAt;
 
     private Integer source;

@@ -11,6 +11,7 @@ DROP TABLE IF EXISTS t_scenic_area;
 
 CREATE TABLE t_scenic_area (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
+    node_id BIGINT DEFAULT NULL COMMENT '关联主导航节点 ID',
     name VARCHAR(100) NOT NULL COMMENT '名称',
     type TINYINT NOT NULL COMMENT '类型：0景区 1校园',
     city VARCHAR(50) NOT NULL DEFAULT '' COMMENT '城市',
@@ -25,11 +26,13 @@ CREATE TABLE t_scenic_area (
     booking_url VARCHAR(300) DEFAULT NULL COMMENT '购票链接',
     opening_hours JSON DEFAULT NULL COMMENT '开放时间',
     images JSON DEFAULT NULL COMMENT '图片列表',
+    tags JSON DEFAULT NULL COMMENT '标签列表',
     contact_phone VARCHAR(100) DEFAULT NULL COMMENT '联系电话',
     status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1营业 0关闭',
     is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    KEY idx_scenic_area_node_id (node_id),
     KEY idx_scenic_area_type_city_status (type, city, status),
     KEY idx_scenic_area_city (city),
     KEY idx_scenic_area_name (name),
@@ -40,6 +43,7 @@ CREATE TABLE t_scenic_area (
 CREATE TABLE t_building (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
     scenic_area_id BIGINT NOT NULL COMMENT '所属景区 ID',
+    node_id BIGINT DEFAULT NULL COMMENT '关联主导航节点 ID',
     name VARCHAR(100) NOT NULL COMMENT '名称',
     type TINYINT NOT NULL DEFAULT 0 COMMENT '类型：0教学楼 1图书馆 2食堂 3宿舍 4景点建筑',
     floor_count INT NOT NULL DEFAULT 0 COMMENT '楼层数',
@@ -52,6 +56,7 @@ CREATE TABLE t_building (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     KEY idx_building_scenic_area_id (scenic_area_id),
+    KEY idx_building_node_id (node_id),
     KEY idx_building_type (type),
     KEY idx_building_name (name),
     CONSTRAINT fk_building_scenic_area
@@ -63,6 +68,7 @@ CREATE TABLE t_facility (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
     scenic_area_id BIGINT NOT NULL COMMENT '所属景区 ID',
     building_id BIGINT DEFAULT NULL COMMENT '所属建筑 ID',
+    node_id BIGINT DEFAULT NULL COMMENT '关联导航节点 ID',
     name VARCHAR(100) NOT NULL COMMENT '名称',
     type INT NOT NULL COMMENT '设施类型',
     subtype VARCHAR(50) DEFAULT NULL COMMENT '子类型',
@@ -85,6 +91,7 @@ CREATE TABLE t_facility (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     KEY idx_facility_scenic_area_id (scenic_area_id),
     KEY idx_facility_building_id (building_id),
+    KEY idx_facility_node_id (node_id),
     KEY idx_facility_type (type),
     KEY idx_facility_name (name),
     CONSTRAINT fk_facility_scenic_area
@@ -100,7 +107,9 @@ CREATE TABLE t_crowd_level (
     scenic_area_id BIGINT NOT NULL COMMENT '所属景区 ID',
     node_id BIGINT NOT NULL COMMENT '路网节点 ID',
     level INT NOT NULL COMMENT '拥挤等级',
-    crowd_count INT NOT NULL DEFAULT 0 COMMENT '拥挤人数',
+    crowd_count INT DEFAULT NULL COMMENT '拥挤人数，可为空',
+    capacity INT DEFAULT NULL COMMENT '容量上限，可为空',
+    predicted_at DATETIME DEFAULT NULL COMMENT '预测时间，可为空',
     recorded_at DATETIME NOT NULL COMMENT '记录时间',
     source INT NOT NULL DEFAULT 1 COMMENT '来源：1用户上报 2系统采集',
     is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
@@ -108,7 +117,9 @@ CREATE TABLE t_crowd_level (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     KEY idx_crowd_level_scenic_area_id (scenic_area_id),
     KEY idx_crowd_level_node_id (node_id),
+    KEY idx_crowd_level_predicted_at (predicted_at),
     KEY idx_crowd_level_recorded_at (recorded_at),
+    KEY idx_crowd_level_scenic_node_time (scenic_area_id, node_id, recorded_at),
     CONSTRAINT fk_crowd_level_scenic_area
         FOREIGN KEY (scenic_area_id) REFERENCES t_scenic_area(id)
         ON DELETE CASCADE ON UPDATE CASCADE
