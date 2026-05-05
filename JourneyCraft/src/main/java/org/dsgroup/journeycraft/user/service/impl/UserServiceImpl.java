@@ -5,10 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.dsgroup.journeycraft.common.enums.ResponseCodeEnum;
 import org.dsgroup.journeycraft.common.exception.BusinessException;
-import org.dsgroup.journeycraft.common.utils.TokenSessionStore;
-import org.dsgroup.journeycraft.user.api.UserService;
+import org.dsgroup.journeycraft.user.api.UserApi;
 import org.dsgroup.journeycraft.user.entity.User;
 import org.dsgroup.journeycraft.user.mapper.UserMapper;
+import org.dsgroup.journeycraft.user.service.UserService;
 import org.dsgroup.journeycraft.user.vo.reqvo.ChangePasswordReqVO;
 import org.dsgroup.journeycraft.user.vo.reqvo.UpdateUserInfoReqVO;
 import org.dsgroup.journeycraft.user.vo.reqvo.UpdateUserPreferencesReqVO;
@@ -24,28 +24,27 @@ import java.time.LocalDateTime;
  */
 @Service
 @RequiredArgsConstructor
-public class UserServiceImpl implements UserService {
+public class UserServiceImpl implements UserService, UserApi {
 
     private final UserMapper userMapper;
-    private final TokenSessionStore tokenSessionStore;
     private final ObjectMapper objectMapper;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /**
-     * 查询当前用户信息。
+     * 根据 userId 查询用户信息。
      */
     @Override
-    public UserInfoRspVO getCurrentUserInfo(String authorization) {
-        User user = requireCurrentUser(authorization);
+    public UserInfoRspVO getUserInfo(Long userId) {
+        User user = requireUser(userId);
         return toUserInfoRsp(user);
     }
 
     /**
-     * 更新当前用户基础资料。
+     * 根据 userId 更新用户基础资料。
      */
     @Override
-    public UserInfoRspVO updateCurrentUserInfo(String authorization, UpdateUserInfoReqVO reqVO) {
-        User user = requireCurrentUser(authorization);
+    public UserInfoRspVO updateUserInfo(Long userId, UpdateUserInfoReqVO reqVO) {
+        User user = requireUser(userId);
         if (reqVO.getNickname() != null) {
             user.setNickname(reqVO.getNickname());
         }
@@ -64,11 +63,11 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 修改当前用户密码。
+     * 根据 userId 修改用户密码。
      */
     @Override
-    public void changePassword(String authorization, ChangePasswordReqVO reqVO) {
-        User user = requireCurrentUser(authorization);
+    public void changePassword(Long userId, ChangePasswordReqVO reqVO) {
+        User user = requireUser(userId);
         if (!passwordEncoder.matches(reqVO.getOldPassword(), user.getPassword())) {
             throw new BusinessException(ResponseCodeEnum.BAD_REQUEST, "原密码错误");
         }
@@ -78,20 +77,20 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 获取当前用户偏好设置。
+     * 根据 userId 获取用户偏好设置。
      */
     @Override
-    public UserPreferencesRspVO getCurrentUserPreferences(String authorization) {
-        User user = requireCurrentUser(authorization);
+    public UserPreferencesRspVO getUserPreferences(Long userId) {
+        User user = requireUser(userId);
         return parsePreferences(user.getPreferences());
     }
 
     /**
-     * 按字段合并更新用户偏好设置。
+     * 根据 userId 按字段合并更新用户偏好设置。
      */
     @Override
-    public UserPreferencesRspVO updateCurrentUserPreferences(String authorization, UpdateUserPreferencesReqVO reqVO) {
-        User user = requireCurrentUser(authorization);
+    public UserPreferencesRspVO updateUserPreferences(Long userId, UpdateUserPreferencesReqVO reqVO) {
+        User user = requireUser(userId);
         UserPreferencesRspVO preferences = parsePreferences(user.getPreferences());
         if (reqVO.getInterests() != null) {
             preferences.setInterests(reqVO.getInterests());
@@ -115,15 +114,38 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 解析 token 并加载当前用户。
+     * 根据 userId 加载用户。
      */
-    private User requireCurrentUser(String authorization) {
-        Long userId = tokenSessionStore.requireUserId(authorization);
+    private User requireUser(Long userId) {
         User user = userMapper.selectById(userId);
         if (user == null) {
             throw new BusinessException(ResponseCodeEnum.USER_NOT_FOUND, "用户不存在");
         }
         return user;
+    }
+
+    /**
+     * 对外接口：根据 userId 获取用户信息。
+     */
+    @Override
+    public UserInfoRspVO getUserById(Long userId) {
+        return getUserInfo(userId);
+    }
+
+    /**
+     * 对外接口：根据 userId 获取昵称。
+     */
+    @Override
+    public String getUserNickname(Long userId) {
+        return requireUser(userId).getNickname();
+    }
+
+    /**
+     * 对外接口：根据 userId 获取头像地址。
+     */
+    @Override
+    public String getUserAvatarUrl(Long userId) {
+        return requireUser(userId).getAvatarUrl();
     }
 
     /**
