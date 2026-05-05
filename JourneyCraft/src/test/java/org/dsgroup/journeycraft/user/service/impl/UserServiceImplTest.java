@@ -1,7 +1,6 @@
 package org.dsgroup.journeycraft.user.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.dsgroup.journeycraft.common.utils.TokenSessionStore;
 import org.dsgroup.journeycraft.user.entity.User;
 import org.dsgroup.journeycraft.user.mapper.UserMapper;
 import org.dsgroup.journeycraft.user.vo.reqvo.ChangePasswordReqVO;
@@ -28,19 +27,17 @@ class UserServiceImplTest {
     @Mock
     private UserMapper userMapper;
 
-    private TokenSessionStore tokenSessionStore;
     private UserServiceImpl userService;
     private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
-        tokenSessionStore = new TokenSessionStore();
         objectMapper = new ObjectMapper();
-        userService = new UserServiceImpl(userMapper, tokenSessionStore, objectMapper);
+        userService = new UserServiceImpl(userMapper, objectMapper);
     }
 
     @Test
-    void getCurrentUserInfoShouldLoadCurrentUser() throws Exception {
+    void getUserInfoShouldLoadUserById() throws Exception {
         User user = new User();
         user.setId(1001L);
         user.setUsername("zhangsan");
@@ -56,14 +53,15 @@ class UserServiceImplTest {
 
         when(userMapper.selectById(1001L)).thenReturn(user);
 
-        String authorization = "Bearer " + tokenSessionStore.issue(1001L, 60, 600).accessToken();
-
-        assertEquals("zhangsan", userService.getCurrentUserInfo(authorization).getUsername());
-        assertEquals("history", userService.getCurrentUserPreferences(authorization).getInterests().get(0));
+        assertEquals("zhangsan", userService.getUserInfo(1001L).getUsername());
+        assertEquals("history", userService.getUserPreferences(1001L).getInterests().get(0));
+        assertEquals("zhangsan", userService.getUserById(1001L).getUsername());
+        assertEquals("张三", userService.getUserNickname(1001L));
+        assertEquals("avatar.jpg", userService.getUserAvatarUrl(1001L));
     }
 
     @Test
-    void updateCurrentUserPreferencesShouldMergeExistingValues() throws Exception {
+    void updateUserPreferencesShouldMergeExistingValues() throws Exception {
         User user = new User();
         user.setId(1001L);
         user.setUsername("zhangsan");
@@ -79,12 +77,10 @@ class UserServiceImplTest {
 
         when(userMapper.selectById(1001L)).thenReturn(user);
 
-        String authorization = "Bearer " + tokenSessionStore.issue(1001L, 60, 600).accessToken();
-
         UpdateUserPreferencesReqVO reqVO = new UpdateUserPreferencesReqVO();
         reqVO.setBudgetPerDay(500);
 
-        UserPreferencesRspVO result = userService.updateCurrentUserPreferences(authorization, reqVO);
+        UserPreferencesRspVO result = userService.updateUserPreferences(1001L, reqVO);
         assertEquals(500, result.getBudgetPerDay());
         assertEquals("walk", result.getTransportType());
         assertEquals("history", result.getInterests().get(0));
@@ -104,13 +100,11 @@ class UserServiceImplTest {
 
         when(userMapper.selectById(1001L)).thenReturn(user);
 
-        String authorization = "Bearer " + tokenSessionStore.issue(1001L, 60, 600).accessToken();
-
         ChangePasswordReqVO reqVO = new ChangePasswordReqVO();
         reqVO.setOldPassword("oldpass");
         reqVO.setNewPassword("newpass");
 
-        userService.changePassword(authorization, reqVO);
+        userService.changePassword(1001L, reqVO);
         verify(userMapper).updateById(any(User.class));
     }
 }
