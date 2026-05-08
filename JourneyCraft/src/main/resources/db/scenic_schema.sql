@@ -70,7 +70,7 @@ CREATE TABLE t_facility (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键',
     scenic_area_id BIGINT NOT NULL COMMENT '所属景区 ID',
     building_id BIGINT DEFAULT NULL COMMENT '所属建筑 ID',
-    node_id BIGINT DEFAULT NULL COMMENT '关联导航节点 ID（后续由导航脚本补外键）',
+    node_id BIGINT DEFAULT NULL COMMENT '关联导航节点 ID',
     name VARCHAR(100) NOT NULL COMMENT '名称',
     type INT NOT NULL COMMENT '设施类型',
     subtype VARCHAR(50) DEFAULT NULL COMMENT '子类型',
