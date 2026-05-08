@@ -53,4 +53,7 @@ public class ScenicItemRspVO {
 
     /** 图片列表。 */
     private List<String> images;
+
+    /** 推荐匹配标签。 */
+    private List<String> tags;
 }

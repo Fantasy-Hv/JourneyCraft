@@ -2,11 +2,13 @@ package org.dsgroup.journeycraft.scenic.api;
 
 import org.dsgroup.journeycraft.scenic.vo.reqvo.BuildingListReqVO;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.FacilityListReqVO;
+import org.dsgroup.journeycraft.scenic.vo.reqvo.FoodPlaceListReqVO;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.ReportCrowdReqVO;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.ScenicListReqVO;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.ScenicSearchReqVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.BuildingRspVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.FacilityRspVO;
+import org.dsgroup.journeycraft.scenic.vo.rspvo.FoodPlaceRspVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.ScenicItemRspVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.ScenicListRspVO;
 import org.dsgroup.journeycraft.scenic.entity.CrowdLevel;
@@ -39,9 +41,29 @@ public interface ScenicService {
     List<BuildingRspVO> listBuildings(Long scenicId, BuildingListReqVO reqVO);
 
     /**
+     * 获取建筑详情。
+     */
+    BuildingRspVO getBuildingDetail(Long buildingId);
+
+    /**
      * 获取景点下设施列表。
      */
     List<FacilityRspVO> listFacilities(Long scenicId, FacilityListReqVO reqVO);
+
+    /**
+     * 获取设施详情。
+     */
+    FacilityRspVO getFacilityDetail(Long facilityId);
+
+    /**
+     * 获取景点下美食列表。
+     */
+    List<FoodPlaceRspVO> listFoods(Long scenicId, FoodPlaceListReqVO reqVO);
+
+    /**
+     * 获取美食详情。
+     */
+    FoodPlaceRspVO getFoodDetail(Long foodPlaceId);
 
     /**
      * 上报节点拥挤度。

@@ -6,11 +6,13 @@ import org.dsgroup.journeycraft.common.result.Response;
 import org.dsgroup.journeycraft.scenic.api.ScenicService;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.BuildingListReqVO;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.FacilityListReqVO;
+import org.dsgroup.journeycraft.scenic.vo.reqvo.FoodPlaceListReqVO;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.ReportCrowdReqVO;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.ScenicListReqVO;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.ScenicSearchReqVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.BuildingRspVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.FacilityRspVO;
+import org.dsgroup.journeycraft.scenic.vo.rspvo.FoodPlaceRspVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.ScenicItemRspVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.ScenicListRspVO;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -65,11 +67,43 @@ public class ScenicController {
     }
 
     /**
+     * 建筑详情接口。
+     */
+    @GetMapping("/buildings/{id}")
+    public Response<BuildingRspVO> buildingDetail(@PathVariable("id") Long id) {
+        return Response.ok(scenicService.getBuildingDetail(id));
+    }
+
+    /**
      * 设施列表接口。
      */
     @GetMapping("/{id}/facilities")
     public Response<List<FacilityRspVO>> facilities(@PathVariable("id") Long id, FacilityListReqVO reqVO) {
         return Response.ok(scenicService.listFacilities(id, reqVO));
+    }
+
+    /**
+     * 设施详情接口。
+     */
+    @GetMapping("/facilities/{id}")
+    public Response<FacilityRspVO> facilityDetail(@PathVariable("id") Long id) {
+        return Response.ok(scenicService.getFacilityDetail(id));
+    }
+
+    /**
+     * 美食列表接口。
+     */
+    @GetMapping("/{id}/foods")
+    public Response<List<FoodPlaceRspVO>> foods(@PathVariable("id") Long id, FoodPlaceListReqVO reqVO) {
+        return Response.ok(scenicService.listFoods(id, reqVO));
+    }
+
+    /**
+     * 美食详情接口。
+     */
+    @GetMapping("/foods/{id}")
+    public Response<FoodPlaceRspVO> foodDetail(@PathVariable("id") Long id) {
+        return Response.ok(scenicService.getFoodDetail(id));
     }
 
     /**
