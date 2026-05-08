@@ -128,6 +128,12 @@ public class RoadNode implements Serializable {
     private Boolean deleted;
 
     /**
+     * POI展示所属景区ID
+     */
+    @TableField("display_for_scenic_id")
+    private Long displayForScenicId;
+
+    /**
      * 创建时间
      */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")

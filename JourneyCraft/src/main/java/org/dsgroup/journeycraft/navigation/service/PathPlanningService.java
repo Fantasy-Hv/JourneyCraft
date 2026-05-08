@@ -31,6 +31,22 @@ public interface PathPlanningService {
                                             Integer transportMode, String strategy);
 
     /**
+     * 单目标路径规划（Dijkstra算法 + 预构建邻接表）
+     * <p>
+     * 使用预加载的内存邻接表替代逐条数据库查询，避免 N+1 性能问题。
+     *
+     * @param startNodeId 起点节点ID
+     * @param endNodeId 终点节点ID
+     * @param transportMode 交通方式: 1=步行, 2=骑行, 3=驾驶
+     * @param strategy 规划策略
+     * @param adjacencyList 预构建的邻接表（按 scenic area 加载）
+     * @return 路径规划结果
+     */
+    PathPlanningResult calculateShortestPath(Long startNodeId, Long endNodeId, 
+                                            Integer transportMode, String strategy,
+                                            java.util.Map<Long, java.util.List<org.dsgroup.journeycraft.navigation.entity.RoadEdge>> adjacencyList);
+
+    /**
      * 单目标路径规划（A*算法）
      * <p>
      * 使用 Haversine 直线距离作为启发式函数，在大多数场景下比 Dijkstra 探索更少节点。
@@ -57,7 +73,16 @@ public interface PathPlanningService {
      * @return 多目标路线规划结果
      */
     MultiTargetRouteResult calculateMultiTargetRoute(Long startNodeId, List<Long> endNodeIds,
-                                                     Integer transportMode, boolean needReturn);
+                                                     Integer transportMode, String strategy, boolean needReturn);
+
+    /**
+     * 多目标路线规划（TSP变种算法 + 预构建邻接表）
+     * <p>
+     * 使用预加载的内存邻接表避免逐条数据库查询
+     */
+    MultiTargetRouteResult calculateMultiTargetRoute(Long startNodeId, List<Long> endNodeIds,
+                                                     Integer transportMode, String strategy, boolean needReturn,
+                                                     java.util.Map<Long, java.util.List<org.dsgroup.journeycraft.navigation.entity.RoadEdge>> adjacencyList);
 
     /**
      * 获取两个节点之间的实际距离

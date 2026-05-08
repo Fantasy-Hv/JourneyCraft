@@ -32,4 +32,12 @@ public class NearbyFacilityRspVO {
 
     /** 实际路径距离（米） */
     private BigDecimal distance;
+
+    private String subtype;
+
+    private Double straightDistance;
+
+    private Integer walkTime;
+
+    private BigDecimal rating;
 }

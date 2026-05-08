@@ -77,7 +77,7 @@ public class NavigationApiServiceImpl implements NavigationService {
                 scenicAreaId, startNodeId, targetNodeIds != null ? targetNodeIds.size() : 0, needReturn);
         Integer mode = parseTransportMode(transportMode);
         return convertToMultiRouteResultDTO(
-                pathPlanningService.calculateMultiTargetRoute(startNodeId, targetNodeIds, mode, needReturn));
+                pathPlanningService.calculateMultiTargetRoute(startNodeId, targetNodeIds, mode, null, needReturn));
     }
 
     @Override

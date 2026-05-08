@@ -192,7 +192,7 @@ class NavigationControllerTest {
         mockResult.setVisitOrder(Arrays.asList(7L, 5L, 10L));
         mockResult.setSegments(Collections.emptyList());
 
-        when(pathPlanningService.calculateMultiTargetRoute(eq(1L), anyList(), eq(1), eq(false)))
+        when(pathPlanningService.calculateMultiTargetRoute(eq(1L), anyList(), eq(1), eq("shortest_distance"), eq(false)))
             .thenReturn(mockResult);
 
         Response<?> response = navigationController.calculateMultiRoute(
@@ -227,7 +227,7 @@ class NavigationControllerTest {
         mockResult.setVisitOrder(Arrays.asList(7L, 5L, 10L));
         mockResult.setSegments(Collections.emptyList());
 
-        when(pathPlanningService.calculateMultiTargetRoute(eq(1L), anyList(), eq(1), eq(true)))
+        when(pathPlanningService.calculateMultiTargetRoute(eq(1L), anyList(), eq(1), eq("shortest_distance"), eq(true)))
             .thenReturn(mockResult);
 
         Response<?> response = navigationController.calculateMultiRoute(
