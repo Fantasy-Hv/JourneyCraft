@@ -1,7 +1,6 @@
-CREATE DATABASE `journeyCraft` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
+CREATE DATABASE `journeycraft` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
 
-
-       -- journeyCraft.t_user definition
+       -- journeycraft.t_user definition
 
 CREATE TABLE `t_user` (
                           `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',

@@ -11,18 +11,22 @@ import org.dsgroup.journeycraft.scenic.api.ScenicService;
 import org.dsgroup.journeycraft.scenic.entity.Building;
 import org.dsgroup.journeycraft.scenic.entity.CrowdLevel;
 import org.dsgroup.journeycraft.scenic.entity.Facility;
+import org.dsgroup.journeycraft.scenic.entity.FoodPlace;
 import org.dsgroup.journeycraft.scenic.entity.ScenicArea;
 import org.dsgroup.journeycraft.scenic.mapper.BuildingMapper;
 import org.dsgroup.journeycraft.scenic.mapper.CrowdLevelMapper;
 import org.dsgroup.journeycraft.scenic.mapper.FacilityMapper;
+import org.dsgroup.journeycraft.scenic.mapper.FoodPlaceMapper;
 import org.dsgroup.journeycraft.scenic.mapper.ScenicAreaMapper;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.BuildingListReqVO;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.FacilityListReqVO;
+import org.dsgroup.journeycraft.scenic.vo.reqvo.FoodPlaceListReqVO;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.ReportCrowdReqVO;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.ScenicListReqVO;
 import org.dsgroup.journeycraft.scenic.vo.reqvo.ScenicSearchReqVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.BuildingRspVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.FacilityRspVO;
+import org.dsgroup.journeycraft.scenic.vo.rspvo.FoodPlaceRspVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.ScenicItemRspVO;
 import org.dsgroup.journeycraft.scenic.vo.rspvo.ScenicListRspVO;
 import org.springframework.stereotype.Service;
@@ -47,6 +51,7 @@ public class ScenicServiceImpl implements ScenicService {
     private final ScenicAreaMapper scenicAreaMapper;
     private final BuildingMapper buildingMapper;
     private final FacilityMapper facilityMapper;
+    private final FoodPlaceMapper foodPlaceMapper;
     private final CrowdLevelMapper crowdLevelMapper;
     private final ObjectMapper objectMapper;
 
@@ -144,18 +149,21 @@ public class ScenicServiceImpl implements ScenicService {
                 .eq(reqVO.getType() != null, Building::getType, reqVO.getType()));
         List<BuildingRspVO> result = new ArrayList<>();
         for (Building building : buildings) {
-            BuildingRspVO rspVO = new BuildingRspVO();
-            rspVO.setId(building.getId());
-            rspVO.setName(building.getName());
-            rspVO.setType(building.getType());
-            rspVO.setFloorCount(building.getFloorCount());
-            rspVO.setLatitude(building.getLatitude());
-            rspVO.setLongitude(building.getLongitude());
-            rspVO.setDescription(building.getDescription());
-            rspVO.setImages(parseStringList(building.getImages()));
-            result.add(rspVO);
+            result.add(toBuildingRsp(building));
         }
         return result;
+    }
+
+    /**
+     * 查询建筑物详情。
+     */
+    @Override
+    public BuildingRspVO getBuildingDetail(Long buildingId) {
+        Building building = buildingMapper.selectById(buildingId);
+        if (building == null) {
+            throw new BusinessException(ResponseCodeEnum.NOT_FOUND, "建筑不存在");
+        }
+        return toBuildingRsp(building);
     }
 
     /**
@@ -169,19 +177,52 @@ public class ScenicServiceImpl implements ScenicService {
                 .eq(reqVO.getBuildingId() != null, Facility::getBuildingId, reqVO.getBuildingId()));
         List<FacilityRspVO> result = new ArrayList<>();
         for (Facility facility : facilities) {
-            FacilityRspVO rspVO = new FacilityRspVO();
-            rspVO.setId(facility.getId());
-            rspVO.setName(facility.getName());
-            rspVO.setType(facility.getType());
-            rspVO.setSubtype(facility.getSubtype());
-            rspVO.setLatitude(facility.getLatitude());
-            rspVO.setLongitude(facility.getLongitude());
-            rspVO.setRating(facility.getRating());
-            rspVO.setPriceRange(facility.getPriceRange());
-            rspVO.setImages(parseStringList(facility.getImages()));
-            result.add(rspVO);
+            result.add(toFacilityRsp(facility));
         }
         return result;
+    }
+
+    /**
+     * 查询设施详情。
+     */
+    @Override
+    public FacilityRspVO getFacilityDetail(Long facilityId) {
+        Facility facility = facilityMapper.selectById(facilityId);
+        if (facility == null) {
+            throw new BusinessException(ResponseCodeEnum.NOT_FOUND, "设施不存在");
+        }
+        return toFacilityRsp(facility);
+    }
+
+    /**
+     * 查询景区下美食列表。
+     */
+    @Override
+    public List<FoodPlaceRspVO> listFoods(Long scenicId, FoodPlaceListReqVO reqVO) {
+        List<FoodPlace> foodPlaces = foodPlaceMapper.selectList(lambdaQuery(FoodPlace.class)
+                .eq(FoodPlace::getScenicAreaId, scenicId)
+                .eq(reqVO.getBuildingId() != null, FoodPlace::getBuildingId, reqVO.getBuildingId())
+                .eq(reqVO.getNodeId() != null, FoodPlace::getNodeId, reqVO.getNodeId())
+                .like(reqVO.getCategory() != null && !reqVO.getCategory().isBlank(), FoodPlace::getCategory, reqVO.getCategory())
+                .like(reqVO.getCuisineType() != null && !reqVO.getCuisineType().isBlank(), FoodPlace::getCuisineType, reqVO.getCuisineType())
+                .like(reqVO.getTag() != null && !reqVO.getTag().isBlank(), FoodPlace::getTags, reqVO.getTag()));
+        List<FoodPlaceRspVO> result = new ArrayList<>();
+        for (FoodPlace foodPlace : foodPlaces) {
+            result.add(toFoodPlaceRsp(foodPlace));
+        }
+        return result;
+    }
+
+    /**
+     * 查询美食详情。
+     */
+    @Override
+    public FoodPlaceRspVO getFoodDetail(Long foodPlaceId) {
+        FoodPlace foodPlace = foodPlaceMapper.selectById(foodPlaceId);
+        if (foodPlace == null) {
+            throw new BusinessException(ResponseCodeEnum.NOT_FOUND, "美食不存在");
+        }
+        return toFoodPlaceRsp(foodPlace);
     }
 
     /**
@@ -254,6 +295,84 @@ public class ScenicServiceImpl implements ScenicService {
         rspVO.setTicketPrice(scenicArea.getTicketPrice());
         rspVO.setOpeningHours(parseOpeningHours(scenicArea.getOpeningHours()));
         rspVO.setImages(parseStringList(scenicArea.getImages()));
+        rspVO.setTags(parseStringList(scenicArea.getTags()));
+        return rspVO;
+    }
+
+    /**
+     * 建筑实体转响应对象。
+     */
+    private BuildingRspVO toBuildingRsp(Building building) {
+        BuildingRspVO rspVO = new BuildingRspVO();
+        rspVO.setId(building.getId());
+        rspVO.setScenicAreaId(building.getScenicAreaId());
+        rspVO.setNodeId(building.getNodeId());
+        rspVO.setName(building.getName());
+        rspVO.setType(building.getType());
+        rspVO.setFloorCount(building.getFloorCount());
+        rspVO.setLatitude(building.getLatitude());
+        rspVO.setLongitude(building.getLongitude());
+        rspVO.setDescription(building.getDescription());
+        rspVO.setTags(parseStringList(building.getTags()));
+        rspVO.setIndoorMap(building.getIndoorMap());
+        rspVO.setImages(parseStringList(building.getImages()));
+        return rspVO;
+    }
+
+    /**
+     * 设施实体转响应对象。
+     */
+    private FacilityRspVO toFacilityRsp(Facility facility) {
+        FacilityRspVO rspVO = new FacilityRspVO();
+        rspVO.setId(facility.getId());
+        rspVO.setScenicAreaId(facility.getScenicAreaId());
+        rspVO.setBuildingId(facility.getBuildingId());
+        rspVO.setNodeId(facility.getNodeId());
+        rspVO.setName(facility.getName());
+        rspVO.setType(facility.getType());
+        rspVO.setSubtype(facility.getSubtype());
+        rspVO.setDescription(facility.getDescription());
+        rspVO.setLatitude(facility.getLatitude());
+        rspVO.setLongitude(facility.getLongitude());
+        rspVO.setRating(facility.getRating());
+        rspVO.setReviewCount(facility.getReviewCount());
+        rspVO.setHeatScore(facility.getHeatScore());
+        rspVO.setPriceRange(facility.getPriceRange());
+        rspVO.setContactInfo(facility.getContactInfo());
+        rspVO.setTags(parseStringList(facility.getTags()));
+        rspVO.setImages(parseStringList(facility.getImages()));
+        return rspVO;
+    }
+
+    /**
+     * 美食实体转响应对象。
+     */
+    private FoodPlaceRspVO toFoodPlaceRsp(FoodPlace foodPlace) {
+        FoodPlaceRspVO rspVO = new FoodPlaceRspVO();
+        rspVO.setId(foodPlace.getId());
+        rspVO.setScenicAreaId(foodPlace.getScenicAreaId());
+        rspVO.setBuildingId(foodPlace.getBuildingId());
+        rspVO.setNodeId(foodPlace.getNodeId());
+        rspVO.setSourceFacilityId(foodPlace.getSourceFacilityId());
+        rspVO.setName(foodPlace.getName());
+        rspVO.setCategory(foodPlace.getCategory());
+        rspVO.setCuisineType(foodPlace.getCuisineType());
+        rspVO.setPriceLevel(foodPlace.getPriceLevel());
+        rspVO.setAvgPrice(foodPlace.getAvgPrice());
+        rspVO.setPriceRange(foodPlace.getPriceRange());
+        rspVO.setLatitude(foodPlace.getLatitude());
+        rspVO.setLongitude(foodPlace.getLongitude());
+        rspVO.setFloorNumber(foodPlace.getFloorNumber());
+        rspVO.setDescription(foodPlace.getDescription());
+        rspVO.setOpeningHours(parseOpeningHours(foodPlace.getOpeningHours()));
+        rspVO.setImages(parseStringList(foodPlace.getImages()));
+        rspVO.setTags(parseStringList(foodPlace.getTags()));
+        rspVO.setContactInfo(foodPlace.getContactInfo());
+        rspVO.setRating(foodPlace.getRating());
+        rspVO.setReviewCount(foodPlace.getReviewCount());
+        rspVO.setHeatScore(foodPlace.getHeatScore());
+        rspVO.setRecommendScore(foodPlace.getRecommendScore());
+        rspVO.setStatus(foodPlace.getStatus());
         return rspVO;
     }
 
