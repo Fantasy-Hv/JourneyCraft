@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 路网节点 Mapper 接口
@@ -102,6 +103,49 @@ public interface RoadNodeMapper extends BaseMapper<RoadNode> {
      */
     @Select("SELECT * FROM t_navigation_road_node WHERE osm_id = #{osmId} AND is_deleted = 0")
     RoadNode selectByOsmId(@Param("osmId") Long osmId);
+
+    /**
+     * 根据名称分页搜索已启用的路网节点（仅返回有名称的节点）
+     *
+     * @param keyword 搜索关键词（模糊匹配），为空时返回所有有名称的已启用节点
+     * @param limit   返回数量限制
+     * @param offset  偏移量
+     * @return 节点列表
+     */
+    @Select("<script>SELECT * FROM t_navigation_road_node WHERE is_deleted = 0 AND is_enabled = 1 AND name IS NOT NULL " +
+            "<if test='keyword != null and keyword != \"\"'>AND name LIKE CONCAT('%', #{keyword}, '%')</if>" +
+            "ORDER BY node_type ASC LIMIT #{limit} OFFSET #{offset}</script>")
+    List<RoadNode> selectByName(@Param("keyword") String keyword, @Param("limit") int limit, @Param("offset") int offset);
+
+    /**
+     * 查询节点关联的通行方式列表（去重）
+     *
+     * @param nodeId 节点ID
+     * @return 通行方式列表（1=仅步行, 2=仅自行车, 3=仅车辆, 4=步行+自行车, 5=全部）
+     */
+    @Select("SELECT DISTINCT transport_type FROM t_navigation_road_edge WHERE is_deleted = 0 AND from_node_id = #{nodeId}")
+    List<Integer> selectTransportTypesByNode(@Param("nodeId") Long nodeId);
+
+    /**
+     * 根据名称分页搜索已启用的路网节点，同时返回 GROUP_CONCAT 聚合的通行方式列表
+     *
+     * @param keyword 搜索关键词（模糊匹配），为空时返回所有有名称的已启用节点
+     * @param limit   返回数量限制
+     * @param offset  偏移量
+     * @return 包含节点信息和 transport_types 字符串的 Map 列表
+     */
+    @Select("<script>" +
+            "SELECT rn.id, rn.osm_id, rn.name, rn.node_type, rn.latitude, rn.longitude, " +
+            "GROUP_CONCAT(DISTINCT re.transport_type ORDER BY re.transport_type) AS transport_types " +
+            "FROM t_navigation_road_node rn " +
+            "LEFT JOIN t_navigation_road_edge re ON (re.from_node_id = rn.id OR re.to_node_id = rn.id) AND re.is_deleted = 0 " +
+            "WHERE rn.is_deleted = 0 AND rn.is_enabled = 1 AND rn.name IS NOT NULL " +
+            "<if test='keyword != null and keyword != \"\"'>AND rn.name LIKE CONCAT('%', #{keyword}, '%')</if>" +
+            "GROUP BY rn.id " +
+            "ORDER BY rn.node_type ASC LIMIT #{limit} OFFSET #{offset}" +
+            "</script>")
+    List<Map<String, Object>> selectByNameWithTransport(@Param("keyword") String keyword, 
+                                                        @Param("limit") int limit, @Param("offset") int offset);
 
     /**
      * 批量插入节点（用于OSM数据导入）

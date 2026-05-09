@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.stream.Collectors;
+import org.dsgroup.journeycraft.navigation.cache.GraphCacheService;
 
 /**
  * 路径规划算法服务实现
@@ -29,6 +31,9 @@ public class PathPlanningServiceImpl implements PathPlanningService {
     
     @Autowired
     private RoadEdgeService roadEdgeService;
+    
+    @Autowired
+    private GraphCacheService graphCacheService;
 
     @Override
     public PathPlanningResult calculateShortestPath(Long startNodeId, Long endNodeId,
@@ -66,7 +71,6 @@ public class PathPlanningServiceImpl implements PathPlanningService {
                 totalTime += time;
             }
         }
-        
         PathPlanningResult result = new PathPlanningResult();
         result.setTotalDistance(totalDistance);
         result.setEstimatedTime(totalTime);
@@ -79,7 +83,7 @@ public class PathPlanningServiceImpl implements PathPlanningService {
 
     @Override
     public PathPlanningResult calculateAStarPath(Long startNodeId, Long endNodeId,
-                                                   Integer transportMode, String strategy) {
+                                                    Integer transportMode, String strategy) {
         log.info("A*路径规划: 起点={}, 终点={}, 交通方式={}, 策略={}", 
                  startNodeId, endNodeId, transportMode, strategy);
         
@@ -125,8 +129,50 @@ public class PathPlanningServiceImpl implements PathPlanningService {
     }
 
     @Override
+    public PathPlanningResult calculateAStarPath(Long startNodeId, Long endNodeId,
+                                                   Integer transportMode, String strategy,
+                                                   Map<Long, List<RoadEdge>> adjacencyList) {
+        log.info("A*路径规划(邻接表): 起点={}, 终点={}", startNodeId, endNodeId);
+        RoadNode startNode = roadNodeService.getById(startNodeId);
+        RoadNode endNode = roadNodeService.getById(endNodeId);
+        if (startNode == null || endNode == null) return null;
+        List<PathNode> pathNodes = aStarWithAdjacency(startNodeId, endNodeId, transportMode, strategy, adjacencyList);
+        if (pathNodes == null || pathNodes.isEmpty()) return null;
+        BigDecimal totalDistance = BigDecimal.ZERO;
+        int totalTime = 0;
+        for (int i = 0; i < pathNodes.size() - 1; i++) {
+            Long fromId = pathNodes.get(i).getNodeId();
+            Long toId = pathNodes.get(i + 1).getNodeId();
+            List<RoadEdge> edges = adjacencyList.get(fromId);
+            if (edges != null) {
+                for (RoadEdge edge : edges) {
+                    if (edge.getToNodeId().equals(toId)) {
+                        BigDecimal dist = edge.getDistance();
+                        if (dist != null) totalDistance = totalDistance.add(dist);
+                        Integer time = switch (transportMode != null ? transportMode : 1) {
+                            case 1 -> edge.getWalkTime();
+                            case 2 -> edge.getBikeTime();
+                            case 3 -> edge.getShuttleTime();
+                            default -> edge.getWalkTime();
+                        };
+                        if (time != null) totalTime += time;
+                        break;
+                    }
+                }
+            }
+        }
+        PathPlanningResult result = new PathPlanningResult();
+        result.setTotalDistance(totalDistance);
+        result.setEstimatedTime(totalTime);
+        result.setTransportMode(getTransportModeName(transportMode));
+        result.setStrategy(strategy != null ? strategy : "shortest_distance");
+        result.setNodes(pathNodes);
+        return result;
+    }
+
+    @Override
     public MultiTargetRouteResult calculateMultiTargetRoute(Long startNodeId, List<Long> endNodeIds,
-                                                              Integer transportMode, boolean needReturn) {
+                                                               Integer transportMode, String strategy, boolean needReturn) {
         log.info("计算多目标路线: 起点={}, 目标数={}, 返回={}", 
                  startNodeId, endNodeIds != null ? endNodeIds.size() : 0, needReturn);
         
@@ -134,8 +180,8 @@ public class PathPlanningServiceImpl implements PathPlanningService {
             return null;
         }
         
-        // 多目标路线默认使用 shortest_distance 策略逐段计算
-        String strategy = "shortest_distance";
+        // 多目标路线使用传入策略逐段计算，null时默认 shortest_distance
+        String effectiveStrategy = (strategy != null) ? strategy : "shortest_distance";
         
         MultiTargetRouteResult result = new MultiTargetRouteResult();
         List<PathPlanningResult> segments = new ArrayList<>();
@@ -148,12 +194,12 @@ public class PathPlanningServiceImpl implements PathPlanningService {
         List<Long> remainingTargets = new ArrayList<>(endNodeIds);
         
         while (!remainingTargets.isEmpty()) {
-            Long nearestNode = findNearestNode(currentNode, remainingTargets, transportMode, strategy);
+            Long nearestNode = findNearestNode(currentNode, remainingTargets, transportMode, effectiveStrategy);
             if (nearestNode == null) {
                 break;
             }
             
-            PathPlanningResult segment = calculateShortestPath(currentNode, nearestNode, transportMode, strategy);
+            PathPlanningResult segment = calculateShortestPath(currentNode, nearestNode, transportMode, effectiveStrategy);
             if (segment != null) {
                 segments.add(segment);
                 totalDistance = totalDistance.add(segment.getTotalDistance());
@@ -167,7 +213,63 @@ public class PathPlanningServiceImpl implements PathPlanningService {
         
         // 如果需要返回起点
         if (needReturn && !visitOrder.isEmpty()) {
-            PathPlanningResult returnSegment = calculateShortestPath(currentNode, startNodeId, transportMode, strategy);
+            PathPlanningResult returnSegment = calculateShortestPath(currentNode, startNodeId, transportMode, effectiveStrategy);
+            if (returnSegment != null) {
+                segments.add(returnSegment);
+                totalDistance = totalDistance.add(returnSegment.getTotalDistance());
+                totalTime += returnSegment.getEstimatedTime();
+            }
+            result.setReturnedToStart(true);
+        } else {
+            result.setReturnedToStart(false);
+        }
+        
+        result.setTotalDistance(totalDistance);
+        result.setTotalTime(totalTime);
+        result.setVisitOrder(visitOrder);
+        result.setSegments(segments);
+        
+        return result;
+    }
+
+    @Override
+    public MultiTargetRouteResult calculateMultiTargetRoute(Long startNodeId, List<Long> endNodeIds,
+                                                              Integer transportMode, String strategy, boolean needReturn,
+                                                              Map<Long, List<RoadEdge>> adjacencyList) {
+        log.info("计算多目标路线(邻接表): 起点={}, 目标数={}, 返回={}", 
+                 startNodeId, endNodeIds != null ? endNodeIds.size() : 0, needReturn);
+        
+        if (endNodeIds == null || endNodeIds.isEmpty()) return null;
+        
+        String effectiveStrategy = (strategy != null) ? strategy : "shortest_distance";
+        
+        MultiTargetRouteResult result = new MultiTargetRouteResult();
+        List<PathPlanningResult> segments = new ArrayList<>();
+        List<Long> visitOrder = new ArrayList<>();
+        BigDecimal totalDistance = BigDecimal.ZERO;
+        int totalTime = 0;
+        
+        Long currentNode = startNodeId;
+        List<Long> remainingTargets = new ArrayList<>(endNodeIds);
+        
+        while (!remainingTargets.isEmpty()) {
+            Long nearestNode = findNearestNode(currentNode, remainingTargets, transportMode, effectiveStrategy, adjacencyList);
+            if (nearestNode == null) break;
+            
+            PathPlanningResult segment = calculateShortestPath(currentNode, nearestNode, transportMode, effectiveStrategy, adjacencyList);
+            if (segment != null) {
+                segments.add(segment);
+                totalDistance = totalDistance.add(segment.getTotalDistance());
+                totalTime += segment.getEstimatedTime();
+                visitOrder.add(nearestNode);
+            }
+            
+            currentNode = nearestNode;
+            remainingTargets.remove(nearestNode);
+        }
+        
+        if (needReturn && !visitOrder.isEmpty()) {
+            PathPlanningResult returnSegment = calculateShortestPath(currentNode, startNodeId, transportMode, effectiveStrategy, adjacencyList);
             if (returnSegment != null) {
                 segments.add(returnSegment);
                 totalDistance = totalDistance.add(returnSegment.getTotalDistance());
@@ -316,13 +418,22 @@ public class PathPlanningServiceImpl implements PathPlanningService {
                     continue;
                 }
                 
-                // 检查是否可通行
-                if (!isTransportable(edge, transportMode)) {
+                // Check transportability
+                boolean passable = isTransportable(edge, transportMode);
+                // For bike mode: allow push-bike on walk-only edges
+                boolean pushBike = (transportMode != null && transportMode == 2) 
+                    && !passable && isWalkable(edge);
+                if (!passable && !pushBike) {
                     continue;
                 }
-                
-                // ★ 根据策略计算边权
-                BigDecimal edgeWeight = getEdgeWeight(edge, strategy, transportMode);
+                BigDecimal edgeWeight;
+                if (passable) {
+                    edgeWeight = getEdgeWeight(edge, strategy, transportMode);
+                } else {
+                    // push-bike: walking speed + 30s penalty
+                    int walkTime = edge.getWalkTime() != null ? edge.getWalkTime() : Integer.MAX_VALUE / 2;
+                    edgeWeight = BigDecimal.valueOf(walkTime + 30);
+                }
                 BigDecimal newWeight = weight.get(currentNodeId).add(edgeWeight);
                 
                 BigDecimal defaultMax = BigDecimal.valueOf(Double.MAX_VALUE);
@@ -398,12 +509,22 @@ public class PathPlanningServiceImpl implements PathPlanningService {
                     continue;
                 }
                 
-                if (!isTransportable(edge, transportMode)) {
+                // Check transportability
+                boolean passable = isTransportable(edge, transportMode);
+                // For bike mode: allow push-bike on walk-only edges
+                boolean pushBike = (transportMode != null && transportMode == 2) 
+                    && !passable && isWalkable(edge);
+                if (!passable && !pushBike) {
                     continue;
                 }
-                
-                // g 值：实际代价（边权）
-                BigDecimal edgeWeight = getEdgeWeight(edge, strategy, transportMode);
+                BigDecimal edgeWeight;
+                if (passable) {
+                    edgeWeight = getEdgeWeight(edge, strategy, transportMode);
+                } else {
+                    // push-bike: walking speed + 30s penalty
+                    int walkTime = edge.getWalkTime() != null ? edge.getWalkTime() : Integer.MAX_VALUE / 2;
+                    edgeWeight = BigDecimal.valueOf(walkTime + 30);
+                }
                 BigDecimal tentativeG = gScore.get(currentNodeId).add(edgeWeight);
                 
                 BigDecimal defaultMax = BigDecimal.valueOf(Double.MAX_VALUE);
@@ -438,16 +559,12 @@ public class PathPlanningServiceImpl implements PathPlanningService {
      * @return 直线距离（米）
      */
     private BigDecimal calculateHaversine(Long nodeId, RoadNode targetNode) {
-        RoadNode node = roadNodeService.getById(nodeId);
-        if (node == null || node.getLatitude() == null || node.getLongitude() == null
-                || targetNode.getLatitude() == null || targetNode.getLongitude() == null) {
+        double[] coord = graphCacheService.getNodeCoord(nodeId);
+        if (coord == null || targetNode.getLatitude() == null || targetNode.getLongitude() == null) {
             return BigDecimal.ZERO;
         }
-        
-        double d = haversineMeters(
-            node.getLatitude().doubleValue(), node.getLongitude().doubleValue(),
-            targetNode.getLatitude().doubleValue(), targetNode.getLongitude().doubleValue()
-        );
+        double d = haversineMeters(coord[0], coord[1],
+            targetNode.getLatitude().doubleValue(), targetNode.getLongitude().doubleValue());
         return BigDecimal.valueOf(d);
     }
 
@@ -530,6 +647,28 @@ public class PathPlanningServiceImpl implements PathPlanningService {
     }
 
     /**
+     * 找到最近的节点（使用邻接表，避免DB查询）
+     */
+    private Long findNearestNode(Long fromNodeId, List<Long> targetNodes, Integer transportMode, String strategy,
+                                  Map<Long, List<RoadEdge>> adjacencyList) {
+        Long nearest = null;
+        BigDecimal minDistance = BigDecimal.valueOf(Double.MAX_VALUE);
+
+        for (Long targetId : targetNodes) {
+            List<PathNode> path = dijkstraWithAdjacency(fromNodeId, targetId, transportMode, strategy, adjacencyList);
+            if (path != null && !path.isEmpty()) {
+                BigDecimal dist = calculatePathDistance(path, adjacencyList);
+                if (dist != null && dist.compareTo(minDistance) < 0) {
+                    minDistance = dist;
+                    nearest = targetId;
+                }
+            }
+        }
+
+        return nearest;
+    }
+
+    /**
      * 计算路径的总距离
      */
     private BigDecimal calculatePathDistance(List<PathNode> path) {
@@ -541,6 +680,31 @@ public class PathPlanningServiceImpl implements PathPlanningService {
             BigDecimal dist = getDistanceBetweenNodes(path.get(i).getNodeId(), path.get(i + 1).getNodeId());
             if (dist != null) {
                 total = total.add(dist);
+            }
+        }
+        return total;
+    }
+
+    /**
+     * 计算路径的总距离（使用邻接表，避免DB查询）
+     */
+    private BigDecimal calculatePathDistance(List<PathNode> path, Map<Long, List<RoadEdge>> adjacencyList) {
+        if (path == null || path.size() < 2) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        for (int i = 0; i < path.size() - 1; i++) {
+            Long fromId = path.get(i).getNodeId();
+            Long toId = path.get(i + 1).getNodeId();
+            List<RoadEdge> edges = adjacencyList.get(fromId);
+            if (edges != null) {
+                for (RoadEdge edge : edges) {
+                    if (edge.getToNodeId().equals(toId)) {
+                        BigDecimal dist = edge.getDistance();
+                        if (dist != null) total = total.add(dist);
+                        break;
+                    }
+                }
             }
         }
         return total;
@@ -584,9 +748,11 @@ public class PathPlanningServiceImpl implements PathPlanningService {
                 double congestion = edge.getCurrentCongestion() != null 
                         ? edge.getCurrentCongestion().doubleValue() : 0.0;
                 double penalty = 1.0 + congestion;  // 拥挤度为0时不惩罚，拥挤度1.0时权重翻倍
-                yield edge.getDistance().multiply(BigDecimal.valueOf(penalty));
+                yield edge.getDistance() != null 
+                    ? edge.getDistance().multiply(BigDecimal.valueOf(penalty))
+                    : BigDecimal.valueOf(Double.MAX_VALUE);
             }
-            default -> edge.getDistance();  // shortest_distance
+            default -> edge.getDistance() != null ? edge.getDistance() : BigDecimal.valueOf(Double.MAX_VALUE);
         };
     }
 
@@ -622,6 +788,181 @@ public class PathPlanningServiceImpl implements PathPlanningService {
             case 3 -> "shuttle";
             default -> "walk";
         };
+    }
+
+    private boolean isWalkable(RoadEdge edge) {
+        if (edge == null) return false;
+        Integer t = edge.getTransportType();
+        return t != null && (t == 1 || t == 4 || t == 5);
+    }
+
+    /**
+     * 灵活输入版本: 支持 scenicAreaId / nodeId / coordinate
+     */
+    @Override
+    public PathPlanningResult calculateShortestPath(Long startNodeId, Long endNodeId, 
+        Integer transportMode, String strategy, Map<Long, List<RoadEdge>> adjacencyList) {
+        log.info("计算最短路径(邻接表): 起点={}, 终点={}, 交通方式={}, 策略={}", 
+                 startNodeId, endNodeId, transportMode, strategy);
+        
+        RoadNode startNode = roadNodeService.getById(startNodeId);
+        RoadNode endNode = roadNodeService.getById(endNodeId);
+        if (startNode == null || endNode == null) return null;
+        
+        List<PathNode> pathNodes = dijkstraWithAdjacency(startNodeId, endNodeId, transportMode, strategy, adjacencyList);
+        if (pathNodes == null || pathNodes.isEmpty()) return null;
+        
+        BigDecimal totalDistance = BigDecimal.ZERO;
+        int totalTime = 0;
+        for (int i = 0; i < pathNodes.size() - 1; i++) {
+            Long fromId = pathNodes.get(i).getNodeId();
+            Long toId = pathNodes.get(i + 1).getNodeId();
+            List<RoadEdge> edges = adjacencyList.get(fromId);
+            if (edges != null) {
+                for (RoadEdge edge : edges) {
+                    if (edge.getToNodeId().equals(toId)) {
+                        BigDecimal dist = edge.getDistance();
+                        if (dist != null) totalDistance = totalDistance.add(dist);
+                        Integer time = switch (transportMode != null ? transportMode : 1) {
+                            case 1 -> edge.getWalkTime();
+                            case 2 -> edge.getBikeTime();
+                            case 3 -> edge.getShuttleTime();
+                            default -> edge.getWalkTime();
+                        };
+                        if (time != null) totalTime += time;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        PathPlanningResult result = new PathPlanningResult();
+        result.setTotalDistance(totalDistance);
+        result.setEstimatedTime(totalTime);
+        result.setTransportMode(getTransportModeName(transportMode));
+        result.setStrategy(strategy != null ? strategy : "shortest_distance");
+        result.setNodes(pathNodes);
+        return result;
+    }
+
+    /**
+     * Dijkstra with pre-built adjacency list
+     */
+    private List<PathNode> dijkstraWithAdjacency(Long startNodeId, Long endNodeId, 
+        Integer transportMode, String strategy, Map<Long, List<RoadEdge>> adjacencyList) {
+        Map<Long, Long> predecessor = new HashMap<>();
+        Map<Long, BigDecimal> weight = new HashMap<>();
+        Set<Long> settled = new HashSet<>();
+        PriorityQueue<NodeWeight> pq = new PriorityQueue<>(Comparator.comparing(nw -> nw.weight));
+        
+        weight.put(startNodeId, BigDecimal.ZERO);
+        pq.add(new NodeWeight(startNodeId, BigDecimal.ZERO));
+        
+        while (!pq.isEmpty()) {
+            NodeWeight current = pq.poll();
+            Long currentNodeId = current.nodeId;
+            
+            if (settled.contains(currentNodeId)) {
+                continue;
+            }
+            settled.add(currentNodeId);
+            
+            if (currentNodeId.equals(endNodeId)) {
+                break;
+            }
+            
+            List<RoadEdge> edges = adjacencyList.get(currentNodeId);
+            if (edges == null) {
+                edges = graphCacheService.getEdges(currentNodeId);
+            }
+            
+            for (RoadEdge edge : edges) {
+                Long neighborId = edge.getToNodeId();
+                if (settled.contains(neighborId)) {
+                    continue;
+                }
+                
+                boolean passable = isTransportable(edge, transportMode);
+                boolean pushBike = (transportMode != null && transportMode == 2) 
+                    && !passable && isWalkable(edge);
+                if (!passable && !pushBike) {
+                    continue;
+                }
+                BigDecimal edgeWeight;
+                if (passable) {
+                    edgeWeight = getEdgeWeight(edge, strategy, transportMode);
+                } else {
+                    int walkTime = edge.getWalkTime() != null ? edge.getWalkTime() : Integer.MAX_VALUE / 2;
+                    edgeWeight = BigDecimal.valueOf(walkTime + 30);
+                }
+                BigDecimal newWeight = weight.get(currentNodeId).add(edgeWeight);
+                
+                BigDecimal defaultMax = BigDecimal.valueOf(Double.MAX_VALUE);
+                if (newWeight.compareTo(weight.getOrDefault(neighborId, defaultMax)) < 0) {
+                    weight.put(neighborId, newWeight);
+                    predecessor.put(neighborId, currentNodeId);
+                    pq.add(new NodeWeight(neighborId, newWeight));
+                }
+            }
+        }
+        
+        if (!predecessor.containsKey(endNodeId) && !endNodeId.equals(startNodeId)) {
+            log.warn("无法找到从 {} 到 {} 的路径", startNodeId, endNodeId);
+            return null;
+        }
+        
+        return rebuildPath(startNodeId, endNodeId, predecessor);
+    }
+
+    private List<PathNode> aStarWithAdjacency(Long startNodeId, Long endNodeId, 
+        Integer transportMode, String strategy, Map<Long, List<RoadEdge>> adjacencyList) {
+        RoadNode endNode = roadNodeService.getById(endNodeId);
+        if (endNode == null) return null;
+        
+        Map<Long, Long> predecessor = new HashMap<>();
+        Map<Long, BigDecimal> gScore = new HashMap<>();
+        Set<Long> settled = new HashSet<>();
+        PriorityQueue<AStarNode> pq = new PriorityQueue<>(Comparator.comparing(an -> an.fScore));
+        
+        gScore.put(startNodeId, BigDecimal.ZERO);
+        BigDecimal hStart = calculateHaversine(startNodeId, endNode);
+        pq.add(new AStarNode(startNodeId, BigDecimal.ZERO, hStart));
+        
+        while (!pq.isEmpty()) {
+            AStarNode current = pq.poll();
+            Long currentNodeId = current.nodeId;
+            if (settled.contains(currentNodeId)) continue;
+            settled.add(currentNodeId);
+            if (currentNodeId.equals(endNodeId)) break;
+            
+            List<RoadEdge> edges = adjacencyList.get(currentNodeId);
+            if (edges == null) {
+                edges = graphCacheService.getEdges(currentNodeId);
+            }
+            for (RoadEdge edge : edges) {
+                Long neighborId = edge.getToNodeId();
+                if (settled.contains(neighborId)) continue;
+                
+                boolean passable = isTransportable(edge, transportMode);
+                boolean pushBike = (transportMode != null && transportMode == 2) && !passable && isWalkable(edge);
+                if (!passable && !pushBike) continue;
+                BigDecimal edgeWeight;
+                if (passable) { edgeWeight = getEdgeWeight(edge, strategy, transportMode); }
+                else { int wt = edge.getWalkTime() != null ? edge.getWalkTime() : Integer.MAX_VALUE / 2; edgeWeight = BigDecimal.valueOf(wt + 30); }
+                
+                BigDecimal tentativeG = gScore.get(currentNodeId).add(edgeWeight);
+                BigDecimal defaultMax = BigDecimal.valueOf(Double.MAX_VALUE);
+                if (tentativeG.compareTo(gScore.getOrDefault(neighborId, defaultMax)) < 0) {
+                    gScore.put(neighborId, tentativeG);
+                    predecessor.put(neighborId, currentNodeId);
+                    BigDecimal hValue = calculateHaversine(neighborId, endNode);
+                    pq.add(new AStarNode(neighborId, tentativeG, hValue));
+                }
+            }
+        }
+        
+        if (!predecessor.containsKey(endNodeId) && !endNodeId.equals(startNodeId)) return null;
+        return rebuildPath(startNodeId, endNodeId, predecessor);
     }
 
     /**

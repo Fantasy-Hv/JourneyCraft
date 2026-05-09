@@ -96,7 +96,7 @@ class PathPlanningServiceImplTest {
      */
     @Test
     void testCalculateMultiTargetRoute_EmptyTargets() {
-        var result = pathPlanningService.calculateMultiTargetRoute(1L, Collections.emptyList(), 1, false);
+        var result = pathPlanningService.calculateMultiTargetRoute(1L, Collections.emptyList(), 1, "shortest_distance", false);
 
         assertNull(result);
     }
@@ -106,7 +106,7 @@ class PathPlanningServiceImplTest {
      */
     @Test
     void testCalculateMultiTargetRoute_NullTargets() {
-        var result = pathPlanningService.calculateMultiTargetRoute(1L, null, 1, false);
+        var result = pathPlanningService.calculateMultiTargetRoute(1L, null, 1, "shortest_distance", false);
 
         assertNull(result);
     }
