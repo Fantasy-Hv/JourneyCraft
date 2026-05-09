@@ -14,6 +14,7 @@ import org.dsgroup.journeycraft.navigation.entity.ScenicAccess;
 import org.dsgroup.journeycraft.navigation.mapper.RoadEdgeMapper;
 import org.dsgroup.journeycraft.navigation.mapper.RoadNodeMapper;
 import org.dsgroup.journeycraft.navigation.mapper.ScenicAccessMapper;
+import org.dsgroup.journeycraft.navigation.cache.GraphCacheService;
 import org.dsgroup.journeycraft.navigation.mapper.SpatialRoadNodeMapper;
 import org.dsgroup.journeycraft.navigation.service.NavigationRouteService;
 import org.dsgroup.journeycraft.navigation.service.PathPlanningService;
@@ -26,7 +27,6 @@ import org.dsgroup.journeycraft.navigation.vo.reqvo.RouteTarget;
 import org.dsgroup.journeycraft.navigation.vo.rspvo.AccessNodeVO;
 import org.dsgroup.journeycraft.navigation.vo.rspvo.CongestionRspVO;
 import org.dsgroup.journeycraft.navigation.vo.rspvo.NearestEdgeRspVO;
-import org.dsgroup.journeycraft.navigation.vo.rspvo.NearbyFacilityRspVO;
 import org.dsgroup.journeycraft.navigation.vo.rspvo.NearbyRspVO;
 import org.dsgroup.journeycraft.navigation.vo.rspvo.PoiNodeVO;
 import org.dsgroup.journeycraft.navigation.vo.rspvo.RouteRspVO;
@@ -84,6 +84,9 @@ public class NavigationController {
 
     @Autowired
     private ScenicAccessMapper scenicAccessMapper;
+
+    @Autowired
+    private GraphCacheService graphCacheService;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -113,39 +116,28 @@ public class NavigationController {
                 return Response.error("无法解析起点或终点到路网节点");
             }
 
-            // Build in-memory adjacency list for performance (avoid N+1 DB queries)
-            Long scenicAreaId = request.getStartScenicAreaId() != null 
-                ? request.getStartScenicAreaId() : request.getEndScenicAreaId();
-            Map<Long, List<RoadEdge>> adjacencyList = new HashMap<>();
-            if (scenicAreaId != null) {
-                List<RoadNode> areaNodes = roadNodeMapper.selectByScenicAreaId(scenicAreaId);
-                if (areaNodes != null && !areaNodes.isEmpty()) {
-                    List<Long> nodeIds = areaNodes.stream().map(RoadNode::getId).collect(Collectors.toList());
-                    nodeIds.add(startNodeId);
-                    nodeIds.add(endNodeId);
-                    for (Long nid : nodeIds) {
-                        List<RoadEdge> edges = roadEdgeMapper.selectOutgoingEdges(nid);
-                        if (edges != null) adjacencyList.put(nid, edges);
-                    }
-                    log.info("构建邻接表: {} 节点, 从 scenicArea={}", adjacencyList.size(), scenicAreaId);
-                }
-            }
+            // Use full in-memory graph from GraphCacheService
+            Map<Long, List<RoadEdge>> adjacencyList = graphCacheService.getAdjacencyList();
 
             PathPlanningService.PathPlanningResult result;
+            boolean hasAdjacency = adjacencyList != null && !adjacencyList.isEmpty();
             if ("astar".equalsIgnoreCase(request.getAlgorithm())) {
-                result = pathPlanningService.calculateAStarPath(startNodeId, endNodeId, mode, request.getStrategy());
-            } else if (!adjacencyList.isEmpty()) {
+                result = hasAdjacency
+                    ? pathPlanningService.calculateAStarPath(startNodeId, endNodeId, mode, request.getStrategy(), adjacencyList)
+                    : pathPlanningService.calculateAStarPath(startNodeId, endNodeId, mode, request.getStrategy());
+            } else if (hasAdjacency) {
                 result = pathPlanningService.calculateShortestPath(startNodeId, endNodeId, mode, request.getStrategy(), adjacencyList);
             } else {
                 result = pathPlanningService.calculateShortestPath(startNodeId, endNodeId, mode, request.getStrategy());
             }
 
             if (result == null) {
-                return Response.error("未找到可行路径");
+                return Response.error("起终点之间无连通路径，可能不在同一路网区域");
             }
 
-            // Derive scenicAreaId from resolved nodes (may be null for coordinate-only inputs)
-            Long routeScenicId = scenicAreaId;
+            // Derive scenicAreaId from request or resolved nodes
+            Long routeScenicId = request.getStartScenicAreaId() != null 
+                ? request.getStartScenicAreaId() : request.getEndScenicAreaId();
             if (routeScenicId == null) {
                 RoadNode startNode = roadNodeMapper.selectById(startNodeId);
                 routeScenicId = startNode != null ? startNode.getScenicAreaId() : null;
@@ -197,22 +189,8 @@ public class NavigationController {
                 return Response.error("无法解析起点或目标");
             }
 
-            // Build adjacency list from scenic area if available
-            Long scenicAreaId = request.getStartScenicAreaId();
-            Map<Long, List<RoadEdge>> adjList = null;
-            if (scenicAreaId != null) {
-                List<RoadNode> areaNodes = roadNodeMapper.selectByScenicAreaId(scenicAreaId);
-                if (areaNodes != null && !areaNodes.isEmpty()) {
-                    adjList = new HashMap<>();
-                    for (RoadNode rn : areaNodes) {
-                        List<RoadEdge> edges = roadEdgeMapper.selectOutgoingEdges(rn.getId());
-                        if (edges != null && !edges.isEmpty()) {
-                            adjList.put(rn.getId(), edges);
-                        }
-                    }
-                    log.info("多目标邻接表: scenicArea={}, {} 个节点", scenicAreaId, adjList.size());
-                }
-            }
+            // Use full in-memory graph
+            Map<Long, List<RoadEdge>> adjList = graphCacheService.getAdjacencyList();
 
             PathPlanningService.MultiTargetRouteResult result;
             if (adjList != null) {
@@ -223,7 +201,7 @@ public class NavigationController {
                     request.getNeedReturn() != null && request.getNeedReturn());
             }
 
-            if (result == null) return Response.error("未找到可行路线");
+            if (result == null) return Response.error("无法规划完整路线，部分目标可能不在可达路网内");
 
             RouteRspVO rsp = new RouteRspVO();
             rsp.setTotalDistance(result.getTotalDistance() != null ? result.getTotalDistance().doubleValue() : 0);
@@ -519,6 +497,8 @@ public class NavigationController {
             @Parameter(description = "交通方式: walk/bike/shuttle") @RequestParam(defaultValue = "walk") String transportMode,
             @Parameter(description = "搜索半径（米）") @RequestParam(defaultValue = "1000") Integer radius) {
         try {
+            if (radius > 5000) radius = 5000;
+            if (radius < 10) radius = 10;
             log.info("查找最近边: lat={}, lng={}, transportMode={}, radius={}", lat, lng, transportMode, radius);
 
             CoordinateTransformUtil.Wgs84Coord wgs = CoordinateTransformUtil.gcj02ToWgs84(lat, lng);
@@ -539,7 +519,7 @@ public class NavigationController {
             double bestSnapLat = 0, bestSnapLng = 0, bestSnapPos = 0;
 
             for (SpatialRoadNodeMapper.NearestEdgeCandidate c : candidates) {
-                if (!isTransportModeCompatible(c.getTransportType(), mode)) {
+                if (!isTransportModeCompatibleRelaxed(c.getTransportType(), mode)) {
                     continue;
                 }
                 double[] proj = computeEdgeProjection(
@@ -824,7 +804,7 @@ public class NavigationController {
                         .map(ScenicAccess::getRoadNodeId).orElse(null);
                 }
                 org.dsgroup.journeycraft.scenic.vo.rspvo.ScenicItemRspVO scenic = scenicService.getScenicDetail(scenicAreaId);
-                if (scenic != null && scenic.getLatitude() != null) {
+                if (scenic != null && scenic.getLatitude() != null && scenic.getLongitude() != null) {
                     return resolveFromCoord(scenic.getLatitude().doubleValue(), scenic.getLongitude().doubleValue(), transportMode, true);
                 }
                 return null;
@@ -969,6 +949,14 @@ public class NavigationController {
         return false;
     }
 
+    private boolean isTransportModeCompatibleRelaxed(Integer edgeTransportType, int mode) {
+        if (edgeTransportType == null) return false;
+        if (mode == 1) return edgeTransportType == 1 || edgeTransportType == 4 || edgeTransportType == 5;
+        if (mode == 2) return edgeTransportType == 1 || edgeTransportType == 2 || edgeTransportType == 4 || edgeTransportType == 5;
+        if (mode == 3) return edgeTransportType == 1 || edgeTransportType == 3 || edgeTransportType == 5;
+        return false;
+    }
+
     private List<String> transportTypeToList(Integer transportType) {
         if (transportType == null) return Collections.emptyList();
         switch (transportType) {
@@ -1025,23 +1013,15 @@ public class NavigationController {
     private int computeConnectedComponentSize(Long startNodeId) {
         Set<Long> visited = new HashSet<>();
         Queue<Long> queue = new LinkedList<>();
-        Map<Long, List<RoadEdge>> adjacency = new HashMap<>();
         visited.add(startNodeId);
         queue.add(startNodeId);
         
         while (!queue.isEmpty() && visited.size() < 10000) {
-            Long nodeId = queue.poll();
-            // Batch load edges for this node
-            List<RoadEdge> outgoing = roadEdgeMapper.selectOutgoingEdges(nodeId);
-            List<RoadEdge> incoming = roadEdgeMapper.selectIncomingEdges(nodeId);
-            // Build adjacency on-the-fly
-            List<RoadEdge> allEdges = new ArrayList<>();
-            if (outgoing != null) allEdges.addAll(outgoing);
-            if (incoming != null) allEdges.addAll(incoming);
-            adjacency.putIfAbsent(nodeId, allEdges);
+            Long currentNodeId = queue.poll();
+            List<RoadEdge> edges = graphCacheService.getEdges(currentNodeId);
             
-            for (RoadEdge e : allEdges) {
-                Long neighbor = e.getFromNodeId().equals(nodeId) ? e.getToNodeId() : e.getFromNodeId();
+            for (RoadEdge e : edges) {
+                Long neighbor = e.getToNodeId();
                 if (visited.add(neighbor)) {
                     queue.add(neighbor);
                 }

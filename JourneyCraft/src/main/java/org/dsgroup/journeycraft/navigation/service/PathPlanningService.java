@@ -59,7 +59,14 @@ public interface PathPlanningService {
      * @return 路径规划结果
      */
     PathPlanningResult calculateAStarPath(Long startNodeId, Long endNodeId,
-                                          Integer transportMode, String strategy);
+                                           Integer transportMode, String strategy);
+
+    /**
+     * 单目标路径规划（A*算法 + 预构建邻接表）
+     */
+    PathPlanningResult calculateAStarPath(Long startNodeId, Long endNodeId,
+                                           Integer transportMode, String strategy,
+                                           java.util.Map<Long, java.util.List<org.dsgroup.journeycraft.navigation.entity.RoadEdge>> adjacencyList);
 
     /**
      * 多目标路线规划（TSP变种算法）
