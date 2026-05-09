@@ -796,8 +796,6 @@ public class PathPlanningServiceImpl implements PathPlanningService {
         return t != null && (t == 1 || t == 4 || t == 5);
     }
 
-
-
     /**
      * 灵活输入版本: 支持 scenicAreaId / nodeId / coordinate
      */
@@ -965,15 +963,6 @@ public class PathPlanningServiceImpl implements PathPlanningService {
         
         if (!predecessor.containsKey(endNodeId) && !endNodeId.equals(startNodeId)) return null;
         return rebuildPath(startNodeId, endNodeId, predecessor);
-    }
-
-    private int parseTransportMode(String mode) {
-        if (mode == null) return 1;
-        return switch (mode.toLowerCase()) {
-            case "bike" -> 2;
-            case "shuttle" -> 3;
-            default -> 1;
-        };
     }
 
     /**

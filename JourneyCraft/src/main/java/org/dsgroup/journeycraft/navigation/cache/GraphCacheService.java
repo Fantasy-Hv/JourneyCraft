@@ -45,10 +45,21 @@ public class GraphCacheService {
         adjacencyList = allEdges.stream()
             .collect(Collectors.groupingBy(RoadEdge::getFromNodeId));
 
-        // Add reverse entries for bidirectional edges
+        // Add reverse entries for bidirectional edges (with swapped direction)
         for (RoadEdge edge : allEdges) {
             if (Boolean.TRUE.equals(edge.getBidirectional())) {
-                adjacencyList.computeIfAbsent(edge.getToNodeId(), k -> new ArrayList<>()).add(edge);
+                RoadEdge reversed = new RoadEdge();
+                reversed.setId(edge.getId());
+                reversed.setFromNodeId(edge.getToNodeId());
+                reversed.setToNodeId(edge.getFromNodeId());
+                reversed.setDistance(edge.getDistance());
+                reversed.setWalkTime(edge.getWalkTime());
+                reversed.setBikeTime(edge.getBikeTime());
+                reversed.setShuttleTime(edge.getShuttleTime());
+                reversed.setTransportType(edge.getTransportType());
+                reversed.setBidirectional(edge.getBidirectional());
+                reversed.setCurrentCongestion(edge.getCurrentCongestion());
+                adjacencyList.computeIfAbsent(reversed.getFromNodeId(), k -> new ArrayList<>()).add(reversed);
             }
         }
 
