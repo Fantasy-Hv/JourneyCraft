@@ -1,0 +1,31 @@
+<svg width="1400" height="920" viewBox="0 0 1400 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1400" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0E1630"/>
+      <stop offset="0.55" stop-color="#173D6E"/>
+      <stop offset="1" stop-color="#FF8A5B"/>
+    </linearGradient>
+    <linearGradient id="hill" x1="350" y1="360" x2="1050" y2="820" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38C6A4"/>
+      <stop offset="1" stop-color="#1E8FA0"/>
+    </linearGradient>
+    <linearGradient id="road" x1="690" y1="700" x2="840" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF3E9"/>
+      <stop offset="1" stop-color="#E9F1FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="1400" height="920" rx="40" fill="url(#sky)"/>
+  <circle cx="1180" cy="150" r="84" fill="#FFF3BE" fill-opacity="0.9"/>
+  <circle cx="1180" cy="150" r="132" fill="#FFF3BE" fill-opacity="0.15"/>
+  <path d="M0 628C154 548 250 545 388 584C508 618 590 548 690 516C850 464 956 510 1100 562C1210 600 1292 596 1400 556V920H0V628Z" fill="url(#hill)"/>
+  <path d="M840 920C842 810 824 716 782 654C750 607 710 577 668 554C639 539 638 505 664 484L708 449C735 427 775 427 804 449L848 484C874 505 875 539 846 554C804 577 764 607 732 654C690 716 672 810 674 920H840Z" fill="url(#road)"/>
+  <path d="M708 492C718 520 729 548 741 576" stroke="#FF8A5B" stroke-width="8" stroke-linecap="round"/>
+  <path d="M652 704C688 666 720 645 742 645C764 645 796 666 832 704" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="534" cy="368" r="58" fill="#FFFFFF" fill-opacity="0.13"/>
+  <circle cx="554" cy="388" r="96" fill="#FFFFFF" fill-opacity="0.07"/>
+  <rect x="98" y="710" width="330" height="118" rx="28" fill="#FFF3E9" fill-opacity="0.14" stroke="#FFFFFF" stroke-opacity="0.14"/>
+  <rect x="122" y="734" width="186" height="18" rx="9" fill="#FFFFFF" fill-opacity="0.86"/>
+  <rect x="122" y="768" width="240" height="14" rx="7" fill="#FFFFFF" fill-opacity="0.42"/>
+  <rect x="122" y="792" width="144" height="14" rx="7" fill="#FFFFFF" fill-opacity="0.28"/>
+</svg>
+
